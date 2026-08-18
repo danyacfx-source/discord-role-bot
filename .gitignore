@@ -1,0 +1,7 @@
+config.json
+data.db
+__pycache__/
+*.pyc
+*.log
+data/*.json
+twitch_bot/data/*.json
