@@ -330,14 +330,8 @@ class YouTubeChatClient:
         embed.set_footer(text=f"Старт в {msk_time} МСК · Не пропустите эфир!")
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Напомнить себе", url=url, style=discord.ButtonStyle.link))
-        content = None
-        role_id = self.config.get("ping_role_id")
-        if role_id == "@everyone":
-            content = "@everyone"
-        elif role_id:
-            content = f"<@&{role_id}>"
         try:
-            msg = await channel.send(content=content, embed=embed, view=view)
+            msg = await channel.send(embed=embed, view=view)
             self._start_notify_message_id = msg.id
             log.info("YouTube: уведомление о скором стриме (%d мин)", minutes_left)
         except Exception:
@@ -388,15 +382,8 @@ class YouTubeChatClient:
             except Exception:
                 return
         msk_time = stream_time.strftime("%H:%M")
-        content = None
-        role_id = self.config.get("ping_role_id")
-        if role_id == "@everyone":
-            content = "@everyone"
-        elif role_id:
-            content = f"<@&{role_id}>"
         try:
-            msg = f"{content} ⏰ До стрима **{msk_time} МСК** меньше 5 минут — готовься!" if content else f"⏰ До стрима **{msk_time} МСК** меньше 5 минут — готовься!"
-            await channel.send(content=msg)
+            await channel.send(content=f"⏰ До стрима **{msk_time} МСК** меньше 5 минут — готовься!")
         except Exception:
             pass
 
