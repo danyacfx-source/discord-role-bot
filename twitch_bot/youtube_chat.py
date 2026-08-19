@@ -265,21 +265,18 @@ class YouTubeChatClient:
                 delta = stream_time - now
                 minutes_left = int(delta.total_seconds() // 60)
 
-                if 0 < minutes_left <= lead_minutes:
-                    key = f"{vid}_{stream_time.isoformat()}"
-                    if self._notified_upcoming == key:
-                        await self._refresh_upcoming(stream_time, vid, title, minutes_left)
-                        continue
-
-                    self._notified_upcoming = key
-                    await self._notify_upcoming(vid, title, stream_time, minutes_left)
-                elif minutes_left <= self.config.get("prep_lead_minutes", 5) and minutes_left > 0:
+                if minutes_left <= self.config.get("prep_lead_minutes", 5) and minutes_left > 0:
                     key = f"{vid}_{stream_time.isoformat()}"
                     if self._notified_prep != key:
                         self._notified_prep = key
                         await self._notify_prep(stream_time)
-                elif minutes_left > lead_minutes:
-                    await self._notify_upcoming(vid, title, stream_time, minutes_left)
+                elif minutes_left <= lead_minutes:
+                    key = f"{vid}_{stream_time.isoformat()}"
+                    if self._notified_upcoming == key:
+                        await self._refresh_upcoming(stream_time, vid, title, minutes_left)
+                    else:
+                        self._notified_upcoming = key
+                        await self._notify_upcoming(vid, title, stream_time, minutes_left)
 
         except Exception:
             log.debug("YouTube: расписание не найдено")
@@ -377,10 +374,8 @@ class YouTubeChatClient:
         elif role_id:
             content = f"<@&{role_id}>"
         try:
-            await channel.send(
-                content=content,
-                content=f"⏰ До стрима **{msk_time} МСК** меньше 5 минут — готовься!"
-            )
+            msg = f"{content} ⏰ До стрима **{msk_time} МСК** меньше 5 минут — готовься!" if content else f"⏰ До стрима **{msk_time} МСК** меньше 5 минут — готовься!"
+            await channel.send(content=msg)
         except Exception:
             pass
 
