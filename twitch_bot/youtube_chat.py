@@ -156,8 +156,8 @@ class YouTubeChatClient:
         try:
             data = await self._api_request("GET", "/liveBroadcasts", params={
                 "part": "id,snippet,status",
-                "broadcastStatus": "active",
-                "maxResults": 5,
+                "broadcastStatus": "all",
+                "maxResults": 10,
             })
             if not data:
                 return
@@ -170,7 +170,15 @@ class YouTubeChatClient:
                 snippet = b.get("snippet", {})
                 status = b.get("status", {})
                 lifecycle = status.get("lifeCycleStatus", "")
-                if lifecycle in ("live", "ready", "revived"):
+                broadcast_status = status.get("broadcastStatus", "")
+
+                is_live = (
+                    lifecycle == "live"
+                    or broadcast_status == "started"
+                    or lifecycle in ("ready", "revived") and broadcast_status != "upcoming"
+                )
+
+                if is_live and lifecycle not in ("complete", "revoked", "expired", "deleted"):
                     active_vid = bid
                     active_title = snippet.get("title", "")
                     break
