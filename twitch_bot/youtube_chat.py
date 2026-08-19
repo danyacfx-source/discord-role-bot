@@ -102,6 +102,10 @@ class YouTubeChatClient:
         self.moderation_enabled = config.get("moderation", {}).get("enabled", True)
         self.ban_on_violation = config.get("moderation", {}).get("ban_on_violation", False)
         self.ban_duration = config.get("moderation", {}).get("ban_duration_seconds", 300)
+        self.screenshot_interval = config.get("screenshot_seconds", 600)
+        self.screenshot_channel_id = config.get("screenshot_channel_id", 0)
+        self._last_screenshot = 0
+        self._last_screenshot_hash = None
 
     async def start(self):
         self._running = True
@@ -137,6 +141,7 @@ class YouTubeChatClient:
                 if self._video_id:
                     await self._check_live()
                     await self._update_viewers()
+                    await self._take_screenshot()
 
             except asyncio.CancelledError:
                 break
@@ -267,6 +272,59 @@ class YouTubeChatClient:
         except Exception:
             pass
 
+    async def _take_screenshot(self):
+        if not self.discord_bot or not self._video_id:
+            return
+        now = time.time()
+        if now - self._last_screenshot < self.screenshot_interval:
+            return
+        if self.screenshot_interval <= 0:
+            return
+
+        channel_id = self.screenshot_channel_id or self.config.get("notify_channel_id", 0)
+        if channel_id <= 0:
+            return
+
+        thumb_url = f"https://img.youtube.com/vi/{self._video_id}/maxresdefault.jpg"
+        try:
+            async with self._session.get(thumb_url) as resp:
+                if resp.status != 200:
+                    thumb_url = f"https://img.youtube.com/vi/{self._video_id}/hqdefault.jpg"
+                data = await resp.read()
+                current_hash = hash(data)
+                if current_hash == self._last_screenshot_hash:
+                    self._last_screenshot = now
+                    return
+                self._last_screenshot_hash = current_hash
+        except Exception:
+            self._last_screenshot = now
+            return
+
+        self._last_screenshot = now
+        channel = self.discord_bot.get_channel(channel_id)
+        if not channel:
+            try:
+                channel = self.discord_bot.fetch_channel(channel_id)
+            except Exception:
+                return
+
+        import discord
+        url = f"https://www.youtube.com/watch?v={self._video_id}"
+        embed = discord.Embed(
+            title="📸 Интересный момент",
+            description=f"**{self._stream_title or 'Стрим'}**",
+            url=url,
+            color=0xFF0000,
+        )
+        embed.set_image(url=thumb_url)
+        embed.add_field(name="Зрители", value=str(self._current_viewers), inline=True)
+        embed.set_footer(text=f"{datetime.now(MSK).strftime('%H:%M:%S')} МСК · YouTube")
+        try:
+            await channel.send(embed=embed)
+            log.info("YouTube: скриншот отправлен")
+        except Exception:
+            log.exception("YouTube: ошибка отправки скриншота")
+
     async def _check_upcoming(self):
         lead_minutes = self.config.get("upcoming_lead_minutes", 10)
         try:
@@ -335,6 +393,8 @@ class YouTubeChatClient:
             url=url,
             color=0xFF0000,
         )
+        thumb_url = f"https://img.youtube.com/vi/{vid}/maxresdefault.jpg"
+        embed.set_image(url=thumb_url)
         embed.set_footer(text=f"Старт в {msk_time} МСК · Не пропустите эфир!")
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Напомнить себе", url=url, style=discord.ButtonStyle.link))
@@ -367,6 +427,8 @@ class YouTubeChatClient:
             url=url,
             color=0xFF0000,
         )
+        thumb_url = f"https://img.youtube.com/vi/{vid}/maxresdefault.jpg"
+        embed.set_image(url=thumb_url)
         embed.set_footer(text=f"Старт в {msk_time} МСК · Обновлено {datetime.now(MSK).strftime('%H:%M:%S')}")
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Напомнить себе", url=url, style=discord.ButtonStyle.link))
@@ -417,6 +479,8 @@ class YouTubeChatClient:
         )
         embed.add_field(name="Канал", value=f"@{self.channel_handle}", inline=True)
         embed.add_field(name="Зрители", value="...", inline=True)
+        thumb_url = f"https://img.youtube.com/vi/{self._video_id}/maxresdefault.jpg"
+        embed.set_image(url=thumb_url)
         embed.set_footer(text=f"Обновлено {datetime.now(MSK).strftime('%H:%M:%S')} МСК · Подключайся к эфиру!")
         view = discord.ui.View(timeout=None)
         view.add_item(discord.ui.Button(label="Открыть стрим", url=url, style=discord.ButtonStyle.link))
