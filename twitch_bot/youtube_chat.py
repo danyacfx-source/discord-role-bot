@@ -154,26 +154,38 @@ class YouTubeChatClient:
 
     async def _check_live(self):
         try:
-            html = await self._fetch_page(f"https://www.youtube.com/@{self.channel_handle}/live")
+            data = await self._api_request("GET", "/liveBroadcasts", params={
+                "part": "id,snippet,status",
+                "broadcastStatus": "active",
+                "maxResults": 5,
+            })
+            if not data:
+                return
 
-            title_match = re.search(r'"title":"([^"]{1,200})"', html)
-            if title_match:
-                self._stream_title = title_match.group(1)
+            broadcasts = data.get("items", [])
+            active_vid = None
+            active_title = None
+            for b in broadcasts:
+                bid = b.get("id", "")
+                snippet = b.get("snippet", {})
+                status = b.get("status", {})
+                lifecycle = status.get("lifeCycleStatus", "")
+                if lifecycle in ("live", "ready", "revived"):
+                    active_vid = bid
+                    active_title = snippet.get("title", "")
+                    break
 
-            match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
-            is_actually_live = '"isLive":true' in html or '"isLiveContent":true' in html
-
-            if match and is_actually_live:
-                vid = match.group(1)
-                if vid != self._video_id:
-                    self._video_id = vid
+            if active_vid:
+                if active_vid != self._video_id:
+                    self._video_id = active_vid
+                    self._stream_title = active_title
                     self._live_chat_id = None
                     self._page_token = None
                     self._seen.clear()
                     self._notified_live = False
                     self._peak_viewers = 0
                     self._live_message_id = None
-                    log.info("YouTube: стрим найден! video=%s", vid)
+                    log.info("YouTube: стрим LIVE! video=%s", active_vid)
                 if not self._notified_live:
                     await self._notify_live_start()
                     self._notified_live = True
@@ -197,22 +209,21 @@ class YouTubeChatClient:
         if not self._video_id:
             return
         try:
-            html = await self._fetch_page(f"https://www.youtube.com/watch?v={self._video_id}")
-            viewer_match = re.search(r'"viewCount":"(\d+)"', html)
-            if not viewer_match:
-                viewer_match = re.search(r'"watching":\s*"([\d,]+)"', html)
-            if not viewer_match:
-                viewer_match = re.search(r'(\d[\d,]*)\s*(?:watching|смотрят|зрител)', html)
-
-            if viewer_match:
-                count_str = viewer_match.group(1).replace(",", "").replace(" ", "")
-                try:
-                    self._current_viewers = int(count_str)
-                except ValueError:
-                    return
-                if self._current_viewers > self._peak_viewers:
-                    self._peak_viewers = self._current_viewers
-                await self._edit_live_embed()
+            data = await self._api_request("GET", "/videos", params={
+                "part": "statistics",
+                "id": self._video_id,
+            })
+            if not data:
+                return
+            items = data.get("items", [])
+            if not items:
+                return
+            stats = items[0].get("statistics", {})
+            count = int(stats.get("viewCount", 0))
+            self._current_viewers = count
+            if count > self._peak_viewers:
+                self._peak_viewers = count
+            await self._edit_live_embed()
         except Exception:
             pass
 
