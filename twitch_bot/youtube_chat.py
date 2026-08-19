@@ -149,7 +149,8 @@ class YouTubeChatClient:
                     self._stream_title = title_match.group(1)
 
                 match = re.search(r'"videoId":"([a-zA-Z0-9_-]{11})"', html)
-                if match:
+                is_actually_live = '"isLive":true' in html or '"isLiveContent":true' in html
+                if match and is_actually_live:
                     vid = match.group(1)
                     if vid != self._video_id:
                         self._video_id = vid
