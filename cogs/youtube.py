@@ -24,7 +24,9 @@ class YouTube(commands.Cog):
             return
 
         self.bridge = TwitchDiscordBridge(self.config, self.bot)
-        self.client = YouTubeChatClient(self.config, self.bot.loop, self.bridge)
+        self.client = YouTubeChatClient(
+            self.config, self.bot.loop, self.bridge, self.bot
+        )
         self._task = self.bot.loop.create_task(self._run_youtube())
         log.info("YouTube-модуль запущен: @%s", self.config.get("channel"))
 
