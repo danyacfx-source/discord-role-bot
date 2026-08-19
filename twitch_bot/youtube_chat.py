@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -11,6 +12,9 @@ import aiohttp
 log = logging.getLogger("youtube")
 
 MSK = timezone(timedelta(hours=3))
+
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+API_BASE = "https://www.googleapis.com/youtube/v3"
 
 
 class YouTubeModeration:
@@ -80,7 +84,8 @@ class YouTubeChatClient:
         self.check_interval = config.get("check_seconds", 30)
         self._running = False
         self._video_id = None
-        self._continuation = None
+        self._live_chat_id = None
+        self._page_token = None
         self._seen = set()
         self._session = None
         self.moderation = YouTubeModeration(config.get("moderation") or {})
@@ -92,6 +97,11 @@ class YouTubeChatClient:
         self._peak_viewers = 0
         self._start_notify_message_id = None
         self._live_message_id = None
+        self._access_token = None
+        self._token_expires = 0
+        self.moderation_enabled = config.get("moderation", {}).get("enabled", True)
+        self.ban_on_violation = config.get("moderation", {}).get("ban_on_violation", False)
+        self.ban_duration = config.get("moderation", {}).get("ban_duration_seconds", 300)
 
     async def start(self):
         self._running = True
@@ -119,10 +129,7 @@ class YouTubeChatClient:
                         await self._check_upcoming()
                         await asyncio.sleep(self.check_interval)
                         continue
-                    await self._get_continuation()
-                    if self._continuation is None:
-                        await asyncio.sleep(5)
-                        continue
+                    await self._resolve_live_chat_id()
 
                 await self._poll_messages()
                 await asyncio.sleep(self.poll_interval)
@@ -160,6 +167,8 @@ class YouTubeChatClient:
                 vid = match.group(1)
                 if vid != self._video_id:
                     self._video_id = vid
+                    self._live_chat_id = None
+                    self._page_token = None
                     self._seen.clear()
                     self._notified_live = False
                     self._peak_viewers = 0
@@ -172,7 +181,8 @@ class YouTubeChatClient:
                 if self._video_id:
                     await self._notify_live_end()
                     self._video_id = None
-                    self._continuation = None
+                    self._live_chat_id = None
+                    self._page_token = None
                     self._notified_live = False
                     self._notified_upcoming = False
                     self._notified_prep = False
@@ -447,109 +457,181 @@ class YouTubeChatClient:
         except Exception:
             log.exception("YouTube: ошибка отправки уведомления")
 
-    async def _get_continuation(self):
+    async def _ensure_access_token(self):
+        if self._access_token and time.time() < self._token_expires - 60:
+            return self._access_token
+
+        client_id = self.config.get("client_id", "")
+        client_secret = self.config.get("client_secret", "")
+        refresh_token = self.config.get("refresh_token", "")
+
+        if not client_id or not client_secret or not refresh_token:
+            return None
+
         try:
-            html = await self._fetch_page(f"https://www.youtube.com/watch?v={self._video_id}")
-            match = re.search(r'"continuation":"([^"]{50,})"', html)
-            if match:
-                self._continuation = match.group(1)
-                log.info("YouTube: continuation obtained")
-            else:
-                log.warning("YouTube: continuation не найден")
+            async with self._session.post(TOKEN_URL, data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }) as resp:
+                data = await resp.json()
+                if "access_token" in data:
+                    self._access_token = data["access_token"]
+                    self._token_expires = time.time() + data.get("expires_in", 3600)
+                    return self._access_token
+                else:
+                    log.error("YouTube OAuth: %s", data.get("error_description", "?"))
+                    return None
         except Exception:
-            log.exception("YouTube: ошибка получения continuation")
+            log.exception("YouTube OAuth: ошибка обновления токена")
+            return None
+
+    async def _api_request(self, method, endpoint, params=None, json_body=None):
+        token = await self._ensure_access_token()
+        if not token:
+            return None
+
+        url = f"{API_BASE}{endpoint}"
+        headers = {"Authorization": f"Bearer {token}"}
+        if json_body:
+            headers["Content-Type"] = "application/json; charset=UTF-8"
+
+        try:
+            if method == "GET":
+                async with self._session.get(url, params=params, headers=headers) as resp:
+                    return await resp.json()
+            elif method == "POST":
+                async with self._session.post(url, params=params, headers=headers, json=json_body) as resp:
+                    return await resp.json()
+            elif method == "DELETE":
+                async with self._session.delete(url, params=params, headers=headers) as resp:
+                    return await resp.json()
+        except Exception:
+            log.exception("YouTube API: ошибка %s %s", method, endpoint)
+            return None
+
+    async def _resolve_live_chat_id(self):
+        if not self._video_id:
+            return
+        data = await self._api_request("GET", "/videos", params={
+            "part": "liveStreamingDetails",
+            "id": self._video_id,
+        })
+        if not data:
+            return
+        items = data.get("items", [])
+        if not items:
+            return
+        details = items[0].get("liveStreamingDetails", {})
+        self._live_chat_id = details.get("activeLiveChatId")
+        if self._live_chat_id:
+            log.info("YouTube: liveChatId=%s", self._live_chat_id)
+        else:
+            log.warning("YouTube: liveChatId не найден")
+
+    async def delete_message(self, message_id):
+        if not self._live_chat_id or not message_id:
+            return False
+        data = await self._api_request("DELETE", "/liveChat/messages", params={
+            "id": message_id,
+        })
+        if data and "error" not in data:
+            log.info("YouTube: сообщение %s удалено", message_id)
+            return True
+        else:
+            log.warning("YouTube: ошибка удаления %s: %s", message_id, data)
+            return False
+
+    async def ban_user(self, channel_id, duration_seconds=None, reason="Нарушение правил"):
+        if not self._live_chat_id or not channel_id:
+            return False
+
+        ban_type = "temporary" if duration_seconds else "permanent"
+        body = {
+            "snippet": {
+                "liveChatId": self._live_chat_id,
+                "type": ban_type,
+                "banDetails": {
+                    "type": "chatOwner",
+                    "banDurationSeconds": str(duration_seconds) if duration_seconds else None,
+                },
+            },
+        }
+        if duration_seconds:
+            body["snippet"]["banDurationSeconds"] = str(duration_seconds)
+
+        data = await self._api_request("POST", "/liveChat/bans", params={"part": "snippet"}, json_body=body)
+        if data and "error" not in data:
+            log.info("YouTube: пользователь %s забанен (%s)", channel_id, ban_type)
+            return True
+        else:
+            log.warning("YouTube: ошибка бана %s: %s", channel_id, data)
+            return False
 
     async def _poll_messages(self):
-        if not self._continuation:
+        if not self._live_chat_id:
             return
-        url = "https://www.youtube.com/youtubei/v1/live_chat/get_messages"
-        payload = {
-            "context": {
-                "client": {
-                    "clientName": "WEB",
-                    "clientVersion": "2.20240101.00.00",
-                    "hl": "ru",
-                    "gl": "RU",
-                }
-            },
-            "continuation": self._continuation,
+
+        params = {
+            "part": "snippet,authorDetails,id",
+            "liveChatId": self._live_chat_id,
+            "maxResults": 200,
         }
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-        }
-        try:
-            async with self._session.post(url, json=payload, headers=headers) as resp:
-                data = await resp.json()
-                if "error" in data:
-                    log.warning("YouTube API error: %s", data["error"].get("message", "?"))
-                    return
+        if self._page_token:
+            params["pageToken"] = self._page_token
 
-                actions = data.get("actions", [])
-                for action in actions:
-                    panel = action.get("updateContinuationItemsAction", {})
-                    items = panel.get("continuationItems", [])
-                    for item in items:
-                        renderer = item.get("chatItemRenderer", {})
-                        if not renderer:
-                            continue
-                        msg_id = renderer.get("id", "")
-                        if msg_id in self._seen:
-                            continue
-                        self._seen.add(msg_id)
-                        if len(self._seen) > 500:
-                            self._seen.clear()
+        data = await self._api_request("GET", "/liveChat/messages", params=params)
+        if not data:
+            return
 
-                        snippet = renderer.get("message", {})
-                        runs = snippet.get("runs", [])
-                        text = "".join(r.get("text", "") for r in runs).strip()
-                        if not text:
-                            continue
+        if "error" in data:
+            log.warning("YouTube API error: %s", data["error"].get("message", "?"))
+            return
 
-                        author = renderer.get("authorName", {}).get("simpleText", "???")
-                        badges = renderer.get("authorBadges", [])
-                        is_owner = False
-                        is_mod = False
-                        badge = ""
-                        for b in badges:
-                            icon = b.get("liveChatAuthorBadgeRenderer", {}).get("icon", {})
-                            icon_type = icon.get("iconType", "")
-                            if icon_type == "OWNER":
-                                badge = "\U0001f3af"
-                                is_owner = True
-                                break
-                            elif icon_type == "MODERATOR":
-                                badge = "\U0001f6e1"
-                                is_mod = True
-                                break
+        self._page_token = data.get("nextPageToken")
 
-                        if not (is_owner or is_mod):
-                            violation = self.moderation.check(text, author)
-                            if violation:
-                                log.warning("YouTube модерация: %s (%s) — %s", author, violation["reason"], text[:60])
-                                if self.bridge:
-                                    await self.bridge.forward_to_discord(
-                                        "YT \u26a0\ufe0f Модерация",
-                                        f"**{author}** — {violation['reason']}: {text[:100]}",
-                                    )
-                                continue
+        items = data.get("items", [])
+        for item in items:
+            msg_id = item.get("id", "")
+            if msg_id in self._seen:
+                continue
+            self._seen.add(msg_id)
+            if len(self._seen) > 500:
+                self._seen.clear()
 
-                        log.info("YouTube: %s%s: %s", badge, author, text[:80])
-                        if self.bridge:
-                            await self.bridge.forward_to_discord(f"YT {badge}{author}", text)
+            snippet = item.get("snippet", {})
+            author_details = item.get("authorDetails", {})
 
-                for action in actions:
-                    panel = action.get("updateContinuationItemsAction", {})
-                    items = panel.get("continuationItems", [])
-                    for item in items:
-                        cont = item.get("continuationItemRenderer", {})
-                        token = (
-                            cont.get("continuationEndpoint", {})
-                            .get("continuationCommand", {})
-                            .get("token", "")
+            display_text = snippet.get("displayMessage", "")
+            author_name = author_details.get("displayName", "???")
+            channel_id = author_details.get("channelId", "")
+            is_owner = author_details.get("isChatOwner", False)
+            is_mod = author_details.get("isChatModerator", False)
+
+            if not display_text:
+                continue
+
+            badge = ""
+            if is_owner:
+                badge = "\U0001f3af"
+            elif is_mod:
+                badge = "\U0001f6e1"
+
+            if not (is_owner or is_mod):
+                violation = self.moderation.check(display_text, author_name)
+                if violation:
+                    log.warning("YouTube модерация: %s (%s) — %s", author_name, violation["reason"], display_text[:60])
+                    if self.bridge:
+                        await self.bridge.forward_to_discord(
+                            "YT \u26a0\ufe0f Модерация",
+                            f"**{author_name}** — {violation['reason']}: {display_text[:100]}",
                         )
-                        if token:
-                            self._continuation = token
+                    await self.delete_message(msg_id)
+                    if self.ban_on_violation and channel_id:
+                        await self.ban_user(channel_id, self.ban_duration)
+                    continue
 
-        except Exception:
-            log.exception("YouTube: ошибка poll")
+            log.info("YouTube: %s%s: %s", badge, author_name, display_text[:80])
+            if self.bridge:
+                await self.bridge.forward_to_discord(f"YT {badge}{author_name}", display_text)
