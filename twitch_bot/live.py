@@ -97,6 +97,8 @@ class StreamLiveNotifier:
                 return
             if self._notified_stream_id:
                 log.info("StreamLive: стрим завершён")
+            from twitch_bot.stream_state import set_stream_live
+            set_stream_live(False)
             await self._notify_offline()
             self._notified_stream_id = None
             self._message_id = None
@@ -111,6 +113,8 @@ class StreamLiveNotifier:
             self._peak_viewers = viewers
         if self._notified_stream_id != stream_id:
             log.info("StreamLive: стрим начался: %s", stream.get("title"))
+            from twitch_bot.stream_state import set_stream_live
+            set_stream_live(True)
             await self._notify(stream, edit=False)
             self._notified_stream_id = stream_id
             self._save_state(stream_id, self._message_id)

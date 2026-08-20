@@ -200,10 +200,14 @@ class YouTubeChatClient:
                     self._live_message_id = None
                     log.info("YouTube: стрим LIVE! video=%s", active_vid)
                 if not self._notified_live:
+                    from twitch_bot.stream_state import set_stream_live
+                    set_stream_live(True)
                     await self._notify_live_start()
                     self._notified_live = True
             else:
                 if self._video_id:
+                    from twitch_bot.stream_state import set_stream_live
+                    set_stream_live(False)
                     await self._notify_live_end()
                     self._video_id = None
                     self._live_chat_id = None

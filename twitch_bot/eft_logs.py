@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from twitch_bot.raid_state import raid_auto_end, raid_auto_start
+from twitch_bot.stream_state import is_stream_live
 
 log = logging.getLogger("eft_logs")
 
@@ -157,15 +158,21 @@ class EftLogWatcher:
         if m:
             code = m.group(1)
             name = map_name(code)
+            if not is_stream_live():
+                return
             log.info("EftLogs: обнаружен вход в рейд, карта: %s (%s)", name, code)
             raid_auto_start(name)
 
     def _scan_menu(self, line):
         if MENU_RE.search(line):
+            if not is_stream_live():
+                return
             log.info("EftLogs: рейд завершён (возврат в меню)")
             raid_auto_end()
 
     def _scan_session_end(self, line):
         if SESSION_END_RE.search(line):
+            if not is_stream_live():
+                return
             log.info("EftLogs: рейд завершён (OnGameSessionEnd)")
             raid_auto_end()

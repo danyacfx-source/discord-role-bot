@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from discord.ext import commands
 from aiohttp import web
 
-from config import OVERLAY
+from config import OVERLAY, CONFIG
 from db import counter_list
 from twitch_bot import overlay_state
 from twitch_bot.raid_state import state as raid_state
@@ -57,6 +57,9 @@ PAGE = """<!DOCTYPE html>
   .raid-run { color:#f1c40f; }
   .raid-stats { font-size:13px; color:#a7a9be; margin-top:4px; }
   .uptime { font-size:14px; color:#a7a9be; margin-top:2px; }
+  .prestream { text-align:center; }
+  .prestream-timer { font-size:42px; font-weight:800; letter-spacing:2px; color:#9146ff; margin:6px 0; }
+  .prestream-label { font-size:15px; color:#a7a9be; }
 </style>
 </head>
 <body>
@@ -67,6 +70,17 @@ async function load() {
     const r = await fetch('/overlay/api');
     const d = await r.json();
     let h = '';
+    const PRESTREAM_MIN = __PRESTREAM_MINUTES__;
+    if (d.stream && d.stream.live && d.stream.started_at) {
+      var elapsed = (Date.now() / 1000) - Date.parse(d.stream.started_at) / 1000;
+      var remain = PRESTREAM_MIN * 60 - elapsed;
+      if (remain > 0) {
+        window._prestreamEnd = Date.parse(d.stream.started_at) / 1000 + PRESTREAM_MIN * 60;
+        h += '<div class="card prestream"><h3>🎬 Стрим скоро начнётся</h3>';
+        h += '<div class="prestream-timer" id="prestreamTimer">--:--</div>';
+        h += '<div class="prestream-label">приносим покой и уют</div></div>';
+      }
+    }
     if (d.map) {
       h += '<div class="card"><h3>🎒 Рандом</h3><div class="value">' + esc(d.map) + '</div></div>';
     }
@@ -115,6 +129,18 @@ setInterval(function () {
   if (s < 0) s = 0;
   var m = Math.floor(s / 60);
   var sec = s % 60;
+  el.textContent = (m < 10 ? '0' + m : m) + ':' + (sec < 10 ? '0' + sec : sec);
+}, 1000);
+setInterval(function () {
+  var el = document.getElementById('prestreamTimer');
+  if (!el || !window._prestreamEnd) return;
+  var remain = Math.floor(window._prestreamEnd - Date.now() / 1000);
+  if (remain <= 0) {
+    el.parentElement.style.display = 'none';
+    return;
+  }
+  var m = Math.floor(remain / 60);
+  var sec = remain % 60;
   el.textContent = (m < 10 ? '0' + m : m) + ':' + (sec < 10 ? '0' + sec : sec);
 }, 1000);
 </script>
@@ -188,7 +214,10 @@ class Overlay(commands.Cog):
         return web.json_response(payload)
 
     async def _page(self, request):
-        return web.Response(text=PAGE, content_type="text/html")
+        prestream_min = (CONFIG.get("twitch") or {}).get("live") or {}
+        prestream_min = prestream_min.get("prestream_timer_minutes", 5)
+        html = PAGE.replace("__PRESTREAM_MINUTES__", str(prestream_min))
+        return web.Response(text=html, content_type="text/html")
 
     async def cog_load(self):
         if not OVERLAY.get("enabled", False):
