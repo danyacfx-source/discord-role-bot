@@ -14,12 +14,13 @@ class TwitchChatClient(twitchio.Client):
     def __init__(self, config, loop, bridge):
         self.cfg = config
         self.bridge = bridge
+        channels = config.get("channels", [config["channel"]])
         super().__init__(
             token=config["oauth"],
-            initial_channels=[config["channel"]],
+            initial_channels=channels,
             loop=loop,
         )
-        self.channel = None
+        self.channels_map = {}
         self.chat_commands = CommandHandler(config, self)
         self.moderation = Moderation(config.get("moderation") or {})
         self.greetings = Greetings(config.get("greetings") or {})
@@ -28,9 +29,11 @@ class TwitchChatClient(twitchio.Client):
         self._promo_interval = config.get("promo_interval_seconds", 600)
 
     async def event_ready(self):
-        self.channel = self.get_channel(self.cfg["channel"])
-        self.moderation.set_channel(self.channel)
-        log.info("Twitch: подключён как %s (канал #%s)", self.nick, self.cfg["channel"])
+        for name in self.cfg.get("channels", [self.cfg["channel"]]):
+            ch = self.get_channel(name)
+            if ch:
+                self.channels_map[name] = ch
+                log.info("Twitch: подключён к #%s", name)
         if self.bridge is not None:
             self.bridge.channel_id = self.cfg.get("discord_channel_id", 0)
         if self._promo_message and self._promo_interval > 0:
@@ -40,9 +43,10 @@ class TwitchChatClient(twitchio.Client):
         await asyncio.sleep(self._promo_interval)
         while True:
             try:
-                if self.channel and self._promo_message:
-                    await self.channel.send(self._promo_message)
-                    log.info("Twitch: промо-сообщение отправлено")
+                for ch in self.channels_map.values():
+                    if self._promo_message:
+                        await ch.send(self._promo_message)
+                log.info("Twitch: промо-сообщение отправлено")
             except asyncio.CancelledError:
                 break
             except Exception:
