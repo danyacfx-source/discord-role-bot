@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+import aiohttp
 import twitchio
 
 from twitch_bot.twitch_cmds import CommandHandler
@@ -8,6 +9,8 @@ from twitch_bot.moderation import Moderation
 from twitch_bot.greetings import Greetings
 
 log = logging.getLogger("twitch")
+
+TWITCH_ANON_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
 
 
 class TwitchChatClient(twitchio.Client):
@@ -39,14 +42,29 @@ class TwitchChatClient(twitchio.Client):
         if self._promo_message and self._promo_interval > 0:
             self._promo_task = self.loop.create_task(self._promo_loop())
 
+    async def _is_channel_live(self, channel_name):
+        headers = {"Client-Id": TWITCH_ANON_CLIENT_ID, "Content-Type": "application/json"}
+        query = "query($login: String!){user(login: $login){stream{id}}}"
+        payload = {"query": query, "variables": {"login": channel_name}}
+        try:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post("https://gql.twitch.tv/gql", headers=headers, json=payload) as resp:
+                    data = await resp.json()
+            user = (data.get("data") or {}).get("user") or {}
+            return user.get("stream") is not None
+        except Exception:
+            log.exception("Twitch: ошибка проверки стрима для %s", channel_name)
+            return False
+
     async def _promo_loop(self):
         await asyncio.sleep(self._promo_interval)
         while True:
             try:
-                for ch in self.channels_map.values():
-                    if self._promo_message:
+                for name, ch in self.channels_map.items():
+                    if self._promo_message and await self._is_channel_live(name):
                         await ch.send(self._promo_message)
-                log.info("Twitch: промо-сообщение отправлено")
+                        log.info("Twitch: промо отправлено в #%s", name)
             except asyncio.CancelledError:
                 break
             except Exception:
