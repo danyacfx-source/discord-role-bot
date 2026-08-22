@@ -1,6 +1,7 @@
 import time
 
 from db import counter_add, counter_get, counter_list
+from config import CONFIG
 from twitch_bot import overlay_state
 from twitch_bot.question_queue import add as qadd, count as qcount, list_queue, pop_first, remove as qremove, clear as qclear
 from twitch_bot.raid_state import end_raid, reset, start_raid, state as raid_state
@@ -417,13 +418,21 @@ class CommandHandler:
         if not video_id:
             await message.channel.send("Не удалось распознать ссылку на YouTube.")
             return
+        full_url = f"https://www.youtube.com/watch?v={video_id}"
         title = f"YouTube ({video_id})"
         requester = message.author.name
-        self.song_queue.add(f"https://www.youtube.com/watch?v={video_id}", title, requester)
+        self.song_queue.add(full_url, title, requester)
         pos = self.song_queue.length()
         await message.channel.send(
             f"🎵 {requester} добавил трек в очередь! Позиция: {pos}"
         )
+        try:
+            owner_id = CONFIG.get("owner_id")
+            if owner_id:
+                owner = await self.bot.fetch_user(owner_id)
+                await owner.send(f"🎵 {requester} заказал трек: {full_url}")
+        except Exception:
+            pass
 
     async def _cmd_song_skip(self, message):
         if not self._is_staff(message.author):
