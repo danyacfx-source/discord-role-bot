@@ -5,6 +5,7 @@ from twitch_bot import overlay_state
 from twitch_bot.question_queue import add as qadd, count as qcount, list_queue, pop_first, remove as qremove, clear as qclear
 from twitch_bot.raid_state import end_raid, reset, start_raid, state as raid_state
 from twitch_bot.tarkov_roulette import roulette
+from twitch_bot.song_queue import SongQueue, extract_video_id
 
 class CommandHandler:
     def __init__(self, config, bot):
@@ -21,6 +22,7 @@ class CommandHandler:
         self.songs = music_cfg.get("songs") or []
         self.votes = {}
         self._voted_users = {}
+        self.song_queue = SongQueue()
 
     def _is_staff(self, author):
         return author.is_mod or author.is_broadcaster
@@ -99,6 +101,18 @@ class CommandHandler:
             return
         if name == "вопросы_чисто":
             await self._cmd_question_clear(message)
+            return
+        if name == "песня":
+            await self._cmd_song_request(message, args)
+            return
+        if name == "skip":
+            await self._cmd_song_skip(message)
+            return
+        if name == "queue":
+            await self._cmd_song_queue(message)
+            return
+        if name == "clearqueue":
+            await self._cmd_song_clear(message)
             return
         cmd = self.commands.get(name)
         if cmd is None:
@@ -393,3 +407,50 @@ class CommandHandler:
             return int(raw)
         except ValueError:
             return 0
+
+    async def _cmd_song_request(self, message, args):
+        url = args.strip()
+        if not url:
+            await message.channel.send("Пример: !Песня https://youtube.com/watch?v=...")
+            return
+        video_id = extract_video_id(url)
+        if not video_id:
+            await message.channel.send("Не удалось распознать ссылку на YouTube.")
+            return
+        title = f"YouTube ({video_id})"
+        requester = message.author.name
+        self.song_queue.add(f"https://www.youtube.com/watch?v={video_id}", title, requester)
+        pos = self.song_queue.length()
+        await message.channel.send(
+            f"🎵 {requester} добавил трек в очередь! Позиция: {pos}"
+        )
+
+    async def _cmd_song_skip(self, message):
+        if not self._is_staff(message.author):
+            return
+        track = self.song_queue.skip()
+        if track:
+            await message.channel.send(f"⏭️ Пропущен: {track['title']}")
+        else:
+            await message.channel.send("Очередь пуста.")
+
+    async def _cmd_song_queue(self, message):
+        queue = self.song_queue.get_queue()
+        current = self.song_queue.get_current()
+        if not queue and not current:
+            await message.channel.send("🎵 Очередь пуста.")
+            return
+        lines = []
+        if current:
+            lines.append(f"▶️ Сейчас: {current['title']} (заказал: {current['requester']})")
+        for i, track in enumerate(queue[:5], 1):
+            lines.append(f"{i}. {track['title']} ({track['requester']})")
+        if len(queue) > 5:
+            lines.append(f"... и ещё {len(queue) - 5}")
+        await message.channel.send("\n".join(lines))
+
+    async def _cmd_song_clear(self, message):
+        if not self._is_staff(message.author):
+            return
+        self.song_queue.clear()
+        await message.channel.send("🧹 Очередь песен очищена.")

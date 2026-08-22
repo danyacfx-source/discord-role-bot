@@ -8,6 +8,7 @@ from config import OVERLAY, CONFIG
 from db import counter_list
 from twitch_bot import overlay_state
 from twitch_bot.raid_state import state as raid_state
+from twitch_bot.song_queue import SongQueue
 
 log = logging.getLogger("overlay")
 
@@ -60,6 +61,10 @@ PAGE = """<!DOCTYPE html>
   .prestream { text-align:center; }
   .prestream-timer { font-size:42px; font-weight:800; letter-spacing:2px; color:#9146ff; margin:6px 0; }
   .prestream-label { font-size:15px; color:#a7a9be; }
+  .song-current { font-size:15px; color:#1db954; margin-bottom:6px; }
+  .song-queue { font-size:13px; color:#a7a9be; }
+  .song-queue div { margin-bottom:2px; }
+  .song-note { font-size:12px; color:#6a6c82; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -109,6 +114,22 @@ async function load() {
         h += '<div class="raid-stats">Рекорд: ' + d.raid.best_streak + '</div>';
       } else {
         h += '<div class="raid-stats">Нет активного рейда</div>';
+      }
+      h += '</div>';
+    }
+    if (d.song && (d.song.current || d.song.queue.length)) {
+      h += '<div class="card"><h3>🎵 Музыка</h3>';
+      if (d.song.current) {
+        h += '<div class="song-current">▶️ ' + esc(d.song.current.title) + '</div>';
+        h += '<div class="song-note">заказал: ' + esc(d.song.current.requester) + '</div>';
+      }
+      if (d.song.queue.length) {
+        h += '<div class="song-queue">';
+        for (var i = 0; i < d.song.queue.length; i++) {
+          h += '<div>' + (i+1) + '. ' + esc(d.song.queue[i].title) + ' (' + esc(d.song.queue[i].requester) + ')</div>';
+        }
+        if (d.song.total > 5) h += '<div>... и ещё ' + (d.song.total - 5) + '</div>';
+        h += '</div>';
       }
       h += '</div>';
     }
@@ -196,6 +217,9 @@ class Overlay(commands.Cog):
     async def _api(self, request):
         state = overlay_state.get_state()
         raid = raid_state()
+        song_queue = SongQueue()
+        current_track = song_queue.get_current()
+        upcoming = song_queue.get_queue()[:5]
         payload = {
             "stream": await self._stream_payload(),
             "map": state.get("map"),
@@ -209,6 +233,11 @@ class Overlay(commands.Cog):
                 "best_streak": raid.get("best_streak", 0),
                 "total_raids": raid.get("total_raids", 0),
                 "last_map": raid.get("last_map"),
+            },
+            "song": {
+                "current": current_track,
+                "queue": upcoming,
+                "total": song_queue.length(),
             },
         }
         return web.json_response(payload)

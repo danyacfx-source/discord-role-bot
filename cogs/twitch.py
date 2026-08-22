@@ -84,7 +84,10 @@ class Twitch(commands.Cog):
                             type=discord.ActivityType.watching, name=text
                         )
                         await self.bot.change_presence(activity=activity)
-            except Exception:
+            except Exception as e:
+                if "closing transport" in str(e):
+                    await asyncio.sleep(interval)
+                    continue
                 log.exception("Twitch: ошибка обновления статуса зрителей")
             await asyncio.sleep(interval)
 
