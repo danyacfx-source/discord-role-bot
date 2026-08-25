@@ -42,8 +42,19 @@ def start_raid():
 
 def end_raid(survived: bool):
     s = _load()
+    if s.get("status") != "raid":
+        return
     s["status"] = "extract" if survived else "dead"
     s["ended_at"] = time.time()
+    s["total_raids"] = s.get("total_raids", 0) + 1
+    s["last_map"] = s.get("current_map")
+    raids = s.setdefault("raids", [])
+    raids.append({
+        "map": s.get("current_map"),
+        "started_at": s.get("started_at"),
+        "ended_at": s["ended_at"],
+        "survived": survived,
+    })
     if survived:
         s["streak"] = s.get("streak", 0) + 1
         s["best_streak"] = max(s.get("best_streak", 0), s["streak"])
@@ -93,6 +104,8 @@ def raid_auto_end():
     )
     s["total_raids"] = s.get("total_raids", 0) + 1
     s["last_map"] = s.get("current_map")
+    s["streak"] = s.get("streak", 0) + 1
+    s["best_streak"] = max(s.get("best_streak", 0), s["streak"])
     s["status"] = None
     s["started_at"] = None
     s["ended_at"] = ended_at

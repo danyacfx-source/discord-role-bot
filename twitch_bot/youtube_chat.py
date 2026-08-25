@@ -109,7 +109,8 @@ class YouTubeChatClient:
 
     async def start(self):
         self._running = True
-        self._session = aiohttp.ClientSession()
+        timeout = aiohttp.ClientTimeout(total=30)
+        self._session = aiohttp.ClientSession(timeout=timeout)
         log.info("YouTube: мониторинг @%s запущен", self.channel_handle)
         try:
             await self._loop()
@@ -165,6 +166,9 @@ class YouTubeChatClient:
                 "maxResults": 10,
             })
             if not data:
+                return
+            if "error" in data:
+                log.warning("YouTube: ошибка API в _check_live: %s", data.get("error", {}).get("message"))
                 return
 
             broadcasts = data.get("items", [])
@@ -227,16 +231,18 @@ class YouTubeChatClient:
             return
         try:
             data = await self._api_request("GET", "/videos", params={
-                "part": "statistics",
+                "part": "liveStreamingDetails",
                 "id": self._video_id,
             })
             if not data:
                 return
+            if "error" in data:
+                return
             items = data.get("items", [])
             if not items:
                 return
-            stats = items[0].get("statistics", {})
-            count = int(stats.get("viewCount", 0))
+            details = items[0].get("liveStreamingDetails", {})
+            count = int(details.get("concurrentViewers", 0))
             self._current_viewers = count
             if count > self._peak_viewers:
                 self._peak_viewers = count
@@ -290,11 +296,18 @@ class YouTubeChatClient:
             return
 
         thumb_url = f"https://img.youtube.com/vi/{self._video_id}/maxresdefault.jpg"
+        fallback_url = f"https://img.youtube.com/vi/{self._video_id}/hqdefault.jpg"
         try:
             async with self._session.get(thumb_url) as resp:
-                if resp.status != 200:
-                    thumb_url = f"https://img.youtube.com/vi/{self._video_id}/hqdefault.jpg"
-                data = await resp.read()
+                if resp.status == 200:
+                    data = await resp.read()
+                else:
+                    async with self._session.get(fallback_url) as resp2:
+                        if resp2.status != 200:
+                            self._last_screenshot = now
+                            return
+                        data = await resp2.read()
+                    thumb_url = fallback_url
                 current_hash = hash(data)
                 if current_hash == self._last_screenshot_hash:
                     self._last_screenshot = now
@@ -580,6 +593,13 @@ class YouTubeChatClient:
                     return await resp.json()
             elif method == "DELETE":
                 async with self._session.delete(url, params=params, headers=headers) as resp:
+                    if resp.status == 204:
+                        return {"status": "ok"}
+                    if resp.status >= 400:
+                        try:
+                            return await resp.json()
+                        except Exception:
+                            return {"error": {"code": resp.status, "message": "HTTP error"}}
                     return await resp.json()
         except Exception:
             log.exception("YouTube API: ошибка %s %s", method, endpoint)
@@ -626,9 +646,8 @@ class YouTubeChatClient:
             "snippet": {
                 "liveChatId": self._live_chat_id,
                 "type": ban_type,
-                "banDetails": {
-                    "type": "chatOwner",
-                    "banDurationSeconds": str(duration_seconds) if duration_seconds else None,
+                "bannedUserDetails": {
+                    "channelId": channel_id,
                 },
             },
         }
@@ -693,7 +712,7 @@ class YouTubeChatClient:
                 badge = "\U0001f6e1"
 
             if not (is_owner or is_mod):
-                violation = self.moderation.check(display_text, author_name)
+                violation = self.moderation.check(display_text, channel_id)
                 if violation:
                     log.warning("YouTube модерация: %s (%s) — %s", author_name, violation["reason"], display_text[:60])
                     if self.bridge:

@@ -4,6 +4,7 @@ import logging
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional
 
 import aiohttp
 import discord
@@ -12,6 +13,7 @@ log = logging.getLogger("twitch")
 
 STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "twitch_live_state.json"
 MSK = timezone(timedelta(hours=3))
+_SENTINEL = object()
 
 
 class StreamLiveNotifier:
@@ -40,7 +42,11 @@ class StreamLiveNotifier:
             log.exception("StreamLive: ошибка чтения файла состояния")
         return None
 
-    def _save_state(self, stream_id=None, message_id=None, upcoming_notified=None, prep_notified=None, peak_viewers=None):
+    def _save_state(self, stream_id=None, message_id=None, upcoming_notified=_SENTINEL, prep_notified=_SENTINEL, peak_viewers=None):
+        if upcoming_notified is _SENTINEL:
+            upcoming_notified = self._upcoming_notified
+        if prep_notified is _SENTINEL:
+            prep_notified = self._prep_notified
         try:
             STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
             STATE_FILE.write_text(
@@ -327,7 +333,7 @@ class StreamLiveNotifier:
             log.exception("StreamLive: ошибка запроса информации о стриме")
             return None
 
-    async def get_viewer_count(self) -> int | None:
+    async def get_viewer_count(self) -> Optional[int]:
         channel = self.config.get("channel")
         if not channel:
             return None

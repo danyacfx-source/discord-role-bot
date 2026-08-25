@@ -23,7 +23,6 @@ MAP_NAMES = {
     "Shoreline": "Побережье",
     "Woods": "Лес",
     "Interchange": "Развязка",
-    "Shoreline": "Побережье",
     "factory4": "Завод",
     "factory4_day": "Завод (день)",
     "factory4_night": "Завод (ночь)",
@@ -108,7 +107,9 @@ class EftLogWatcher:
         if self._active_dir != str(latest):
             log.info("EftLogs: переключаюсь на свежую папку логов %s", latest.name)
             self._active_dir = str(latest)
-            self._offsets = {}
+            self._snapshot_offsets(latest)
+            self._save_offsets()
+            return
         if self._first_scan:
             self._first_scan = False
             self._snapshot_offsets(latest)

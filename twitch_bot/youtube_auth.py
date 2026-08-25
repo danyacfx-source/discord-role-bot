@@ -12,6 +12,7 @@ YouTube OAuth2 авторизация — запустить один раз.
 """
 
 import json
+import secrets
 import sys
 from urllib.parse import urlencode, parse_qs
 from urllib.request import Request, urlopen
@@ -27,6 +28,7 @@ SCOPES = [
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+_oauth_state = None
 
 
 def load_config():
@@ -47,6 +49,11 @@ class CallbackHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         qs = parse_qs(self.path.split("?", 1)[-1] if "?" in self.path else "")
         if "code" in qs:
+            if qs.get("state", [None])[0] != _oauth_state:
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"State mismatch - CSRF rejected")
+                return
             CallbackHandler.code = qs["code"][0]
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -109,6 +116,7 @@ def get_access_token(config):
 
 
 def main():
+    global _oauth_state
     config, config_path = load_config()
     yt = config.setdefault("youtube", {})
     client_id = yt.get("client_id", "")
@@ -118,6 +126,7 @@ def main():
         print("Впиши client_id и client_secret в config.json секцию youtube")
         sys.exit(1)
 
+    _oauth_state = secrets.token_urlsafe(32)
     params = {
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
@@ -125,6 +134,7 @@ def main():
         "scope": " ".join(SCOPES),
         "access_type": "offline",
         "prompt": "consent",
+        "state": _oauth_state,
     }
     auth_url = f"{AUTH_URL}?{urlencode(params)}"
 

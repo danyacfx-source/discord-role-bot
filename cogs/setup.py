@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import CHANNELS, EXTRA_ROLES, LEVELS, ROLE_SETTINGS
+from config import CHANNELS, EXTRA_ROLES, GUILD_ID, LEVELS, ROLE_SETTINGS
 from utils import _norm, find_channel
 
 log = logging.getLogger("setup")
@@ -16,19 +16,22 @@ class Setup(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if not ROLE_SETTINGS:
+        if not ROLE_SETTINGS or not GUILD_ID:
             return
-        for guild in self.bot.guilds:
-            bot_member = guild.get_member(self.bot.user.id)
-            if bot_member is None:
-                continue
-            try:
-                reports = await self._apply_role_settings(guild, bot_member.top_role, guild.roles)
-                for line in reports:
-                    if "❌" in line or "⛔" in line:
-                        log.info("Роли %s: %s", guild.name, line)
-            except Exception as e:
-                log.info("Роли %s: ошибка автонастройки: %s", guild.name, e)
+        guild = self.bot.get_guild(GUILD_ID)
+        if guild is None:
+            log.warning("Setup: гильдия %s не найдена", GUILD_ID)
+            return
+        bot_member = guild.get_member(self.bot.user.id)
+        if bot_member is None:
+            return
+        try:
+            reports = await self._apply_role_settings(guild, bot_member.top_role, guild.roles)
+            for line in reports:
+                if "❌" in line or "⛔" in line:
+                    log.info("Роли %s: %s", guild.name, line)
+        except Exception as e:
+            log.info("Роли %s: ошибка автонастройки: %s", guild.name, e)
 
     @staticmethod
     def _parse_color(value):
@@ -171,11 +174,11 @@ class Setup(commands.Cog):
             wanted_voice = {_norm(n) for n in voice_names}
 
             for ch in list(category.text_channels):
-                if ch.name in wanted_voice:
+                if _norm(ch.name) in wanted_voice:
                     await ch.delete(reason="Лишний текстовый канал в войс-категории")
                     created.append(f"Удалён # {ch.name}")
             for ch in list(category.voice_channels):
-                if ch.name in wanted_text:
+                if _norm(ch.name) in wanted_text:
                     await ch.delete(reason="Лишний войс-канал в текстовой категории")
                     created.append(f"Удалён 🔊 {ch.name}")
 

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 
 log = logging.getLogger("twitch")
 
@@ -31,13 +32,15 @@ class TwitchDiscordBridge:
             return
         if message.channel.id != self.channel_id:
             return
-        if self.client is None or self.client.channel is None:
+        if self.client is None or not self.client.channels_map:
             return
         text = (message.content or "").replace("\n", " ")[:450]
         if not text.strip():
             return
+        safe_name = re.sub(r"[^\w\s\-]", "", message.author.display_name)[:30]
         try:
-            await self.client.channel.send(f"[Discord] {message.author.display_name}: {text}")
+            for ch in self.client.channels_map.values():
+                await ch.send(f"[Discord] {safe_name}: {text}")
         except Exception:
             log.exception("Ошибка отправки в Twitch из Discord")
 
@@ -53,9 +56,15 @@ class TwitchDiscordBridge:
         async with self._lock:
             batch = self._queue
             self._queue = []
+        if not batch:
+            return
         channel = self.discord_bot.get_channel(self.channel_id)
         if channel is None:
-            return
+            try:
+                channel = await self.discord_bot.fetch_channel(self.channel_id)
+            except Exception:
+                log.warning("Bridge: канал Discord %s недоступен, %d сообщений потеряно", self.channel_id, len(batch))
+                return
         for chunk in self._chunks(batch, 1900):
             try:
                 await channel.send("\n".join(chunk))

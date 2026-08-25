@@ -19,8 +19,19 @@ class Welcome(commands.Cog):
             return
         if self.config.get("send_dm", True):
             try:
-                await member.send(embed=self._build_embed(member))
+                embed = self._build_embed(member)
+                if len(embed) > 6000:
+                    embed = discord.Embed(
+                        title=self.config.get("title", "Добро пожаловать!"),
+                        description=self.config.get(
+                            "intro", "Рады видеть тебя на сервере! Загляни в чаты и приходи на стримы."
+                        ),
+                        color=discord.Color.purple(),
+                    )
+                await member.send(embed=embed)
                 logging.info("Welcome: приветствие отправлено %s", member)
+            except discord.HTTPException:
+                logging.warning("Welcome: не удалось отправить ЛС %s", member)
             except discord.Forbidden:
                 logging.warning("Welcome: нельзя отправить ЛС %s", member)
 
@@ -63,7 +74,10 @@ class Welcome(commands.Cog):
             color=discord.Color.purple(),
         )
         if lines:
-            embed.add_field(name="📂 Наши каналы", value="\n".join(lines).strip(), inline=False)
+            channel_text = "\n".join(lines).strip()
+            if len(channel_text) > 1024:
+                channel_text = channel_text[:1020] + "\n…"
+            embed.add_field(name="📂 Наши каналы", value=channel_text, inline=False)
         if GUILD_ID and guild.rules_channel:
             embed.add_field(
                 name="📜 Правила",

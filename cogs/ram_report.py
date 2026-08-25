@@ -25,7 +25,11 @@ class RamReport(commands.Cog):
     def _peak_mb(self) -> float:
         import psutil
 
-        return psutil.Process().memory_info().peak_wset / (1024 * 1024)
+        info = psutil.Process().memory_info()
+        peak = getattr(info, "peak_wset", None)
+        if peak is not None:
+            return peak / (1024 * 1024)
+        return info.rss / (1024 * 1024)
 
     @tasks.loop(minutes=30)
     async def ram_report_loop(self):

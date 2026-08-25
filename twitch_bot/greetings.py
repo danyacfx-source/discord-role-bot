@@ -2,11 +2,18 @@ import json
 import time
 from pathlib import Path
 
+SEEN_TTL = 7 * 24 * 3600
+
+
 class Greetings:
     def __init__(self, config):
         self.config = config or {}
-        data_dir = Path(__file__).resolve().parent / "data"
-        data_dir.mkdir(exist_ok=True)
+        data_dir = Path(__file__).resolve().parent.parent / "data"
+        try:
+            data_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            data_dir = Path(__file__).resolve().parent / "data"
+            data_dir.mkdir(parents=True, exist_ok=True)
         self.seen_path = data_dir / "seen_users.json"
         self.seen = self._load()
         self._last_welcome = {}
@@ -33,13 +40,25 @@ class Greetings:
         if author is None or author.is_broadcaster or author.is_mod:
             return
         user = author.name.lower()
-        if user in self.seen:
-            return
         now = time.time()
+        last_seen = self.seen.get(user, 0)
+        if now - last_seen < SEEN_TTL:
+            return
         if now - self._last_welcome.get(user, 0) < self.config.get("welcome_cooldown", 60):
             return
         self.seen[user] = now
         self._last_welcome[user] = now
+        self._gc()
         self._save()
         template = self.config.get("welcome_message", "Добро пожаловать в чат, {user}!")
-        await message.channel.send(template.format(user=author.name))
+        try:
+            text = template.format(user=author.name)
+        except (KeyError, IndexError, ValueError):
+            text = f"Добро пожаловать в чат, {author.name}!"
+        await message.channel.send(text)
+
+    def _gc(self):
+        cutoff = time.time() - SEEN_TTL
+        stale = [k for k, ts in self.seen.items() if ts < cutoff]
+        for k in stale:
+            del self.seen[k]

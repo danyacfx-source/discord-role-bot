@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from discord.ext import commands
@@ -175,6 +176,7 @@ class Overlay(commands.Cog):
         self.bot = bot
         self._runner = None
         self._site = None
+        self._auth_token = secrets.token_urlsafe(32)
 
     async def _get_live(self):
         try:
@@ -215,6 +217,9 @@ class Overlay(commands.Cog):
         return {"live": False, "viewers": 0, "title": None, "next": next_text}
 
     async def _api(self, request):
+        token = request.headers.get("X-Overlay-Token") or request.query.get("token")
+        if not secrets.compare_digest(token or "", self._auth_token):
+            return web.json_response({"error": "unauthorized"}, status=401)
         state = overlay_state.get_state()
         raid = raid_state()
         song_queue = SongQueue()
@@ -225,7 +230,7 @@ class Overlay(commands.Cog):
             "map": state.get("map"),
             "quest": state.get("quest"),
             "allergy": state.get("allergy"),
-            "counters": [{"name": n, "value": v} for n, v in counter_list("dendosicsh") if n != "tod"],
+            "counters": [{"name": n, "value": v} for n, v in counter_list((CONFIG.get("twitch") or {}).get("channel", "")) if n != "tod"],
             "raid": {
                 "status": raid.get("status"),
                 "started_at": raid.get("started_at"),
@@ -259,9 +264,14 @@ class Overlay(commands.Cog):
         await self._runner.setup()
         host = OVERLAY.get("host", "127.0.0.1")
         port = OVERLAY.get("port", 8765)
-        self._site = web.TCPSite(self._runner, host, port)
-        await self._site.start()
-        log.info("Overlay запущен на http://%s:%s/overlay", host, port)
+        try:
+            self._site = web.TCPSite(self._runner, host, port)
+            await self._site.start()
+            log.info("Overlay запущен на http://%s:%s/overlay", host, port)
+        except OSError as e:
+            log.error("Overlay: не удалось занять порт %s — %s", port, e)
+            await self._runner.cleanup()
+            self._runner = None
 
     async def cog_unload(self):
         if self._site is not None:

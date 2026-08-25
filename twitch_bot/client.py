@@ -10,7 +10,19 @@ from twitch_bot.greetings import Greetings
 
 log = logging.getLogger("twitch")
 
-TWITCH_ANON_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+
+TWITCH_ANON_CLIENT_ID = None
+
+
+def get_anon_client_id(config=None):
+    global TWITCH_ANON_CLIENT_ID
+    if TWITCH_ANON_CLIENT_ID:
+        return TWITCH_ANON_CLIENT_ID
+    if config:
+        TWITCH_ANON_CLIENT_ID = config.get("anon_client_id", "")
+    if not TWITCH_ANON_CLIENT_ID:
+        TWITCH_ANON_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+    return TWITCH_ANON_CLIENT_ID
 
 
 class TwitchChatClient(twitchio.Client):
@@ -32,18 +44,23 @@ class TwitchChatClient(twitchio.Client):
         self._promo_interval = config.get("promo_interval_seconds", 600)
 
     async def event_ready(self):
+        self.channels_map.clear()
         for name in self.cfg.get("channels", [self.cfg["channel"]]):
             ch = self.get_channel(name)
             if ch:
                 self.channels_map[name] = ch
                 log.info("Twitch: подключён к #%s", name)
+        primary = self.cfg.get("channel", "")
+        if primary in self.channels_map:
+            self.moderation.set_channel(self.channels_map[primary])
         if self.bridge is not None:
             self.bridge.channel_id = self.cfg.get("discord_channel_id", 0)
-        if self._promo_message and self._promo_interval > 0:
+        if self._promo_message and self._promo_interval > 0 and (self._promo_task is None or self._promo_task.done()):
             self._promo_task = self.loop.create_task(self._promo_loop())
 
     async def _is_channel_live(self, channel_name):
-        headers = {"Client-Id": TWITCH_ANON_CLIENT_ID, "Content-Type": "application/json"}
+        client_id = get_anon_client_id(self.cfg)
+        headers = {"Client-Id": client_id, "Content-Type": "application/json"}
         query = "query($login: String!){user(login: $login){stream{id}}}"
         payload = {"query": query, "variables": {"login": channel_name}}
         try:

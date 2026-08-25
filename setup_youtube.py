@@ -4,6 +4,7 @@
 """
 import json
 import os
+import secrets
 import sys
 import webbrowser
 from urllib.parse import urlencode, parse_qs
@@ -16,6 +17,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
 REDIRECT_URI = "http://localhost:8090/callback"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
+_oauth_state = None
 
 
 def clear():
@@ -34,11 +36,18 @@ def save_config(cfg):
 
 class CallbackHandler(BaseHTTPRequestHandler):
     code = None
+    state_ok = False
 
     def do_GET(self):
         qs = parse_qs(self.path.split("?", 1)[-1] if "?" in self.path else "")
         if "code" in qs:
+            if qs.get("state", [None])[0] != _oauth_state:
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"State mismatch - CSRF rejected")
+                return
             CallbackHandler.code = qs["code"][0]
+            CallbackHandler.state_ok = True
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -114,12 +123,14 @@ def step4_input():
 
 
 def step5_auth(client_id, client_secret):
+    global _oauth_state
     print()
     print("=" * 60)
     print("  ШАГ 5: Авторизация канала")
     print("=" * 60)
     print()
 
+    _oauth_state = secrets.token_urlsafe(32)
     params = {
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
@@ -127,6 +138,7 @@ def step5_auth(client_id, client_secret):
         "scope": "https://www.googleapis.com/auth/youtube",
         "access_type": "offline",
         "prompt": "consent",
+        "state": _oauth_state,
     }
     auth_url = f"{AUTH_URL}?{urlencode(params)}"
 

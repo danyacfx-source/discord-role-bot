@@ -1,4 +1,5 @@
 import logging
+import time
 
 import discord
 from discord import app_commands
@@ -25,8 +26,12 @@ from utils import role_for_level
 
 
 class Leveling(commands.Cog):
+    XP_COOLDOWN_SECONDS = 30
+    MAX_COOLDOWN_ENTRIES = 10000
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._xp_cooldowns: dict[int, float] = {}
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -50,6 +55,16 @@ class Leveling(commands.Cog):
             return
         if EXCLUDE_ROLES and any(r.name in EXCLUDE_ROLES for r in message.author.roles):
             return
+        uid = message.author.id
+        now = time.time()
+        if len(self._xp_cooldowns) > self.MAX_COOLDOWN_ENTRIES:
+            stale = [k for k, v in self._xp_cooldowns.items() if now - v > 300]
+            for k in stale:
+                del self._xp_cooldowns[k]
+        last = self._xp_cooldowns.get(uid, 0)
+        if now - last < self.XP_COOLDOWN_SECONDS:
+            return
+        self._xp_cooldowns[uid] = now
         points, _xp = add_message(message.guild.id, message.author.id)
         await self.update_roles(message.author, points, message.channel)
         season_add_message(message.guild.id, message.author.id)
@@ -92,11 +107,18 @@ class Leveling(commands.Cog):
                 member.guild.name,
             )
             return
+        try:
+            await member.add_roles(target_role, reason="Достигнут уровень активности")
+        except discord.Forbidden:
+            logging.error("Нет прав выдать роль %s для %s", target_role.name, member)
+            return
+        except discord.HTTPException:
+            logging.error("Ошибка выдачи роли %s для %s", target_role.name, member)
+            return
         for i, lvl in enumerate(LEVELS):
             r = role_for_level(member.guild, i)
-            if r is not None and r in member.roles:
+            if r is not None and r in member.roles and r != target_role:
                 await self._safe_remove(member, r)
-        await member.add_roles(target_role, reason="Достигнут уровень активности")
         try:
             await member.send(
                 f"**{BOT_NAME}**: {member.mention} собрал {points} сообщений "

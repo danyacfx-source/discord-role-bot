@@ -11,7 +11,7 @@ def _norm(name: str) -> str:
 
 def find_channel(channels: list, name: str):
     n = _norm(name)
-    return next((c for c in channels if c.name == n), None)
+    return next((c for c in channels if _norm(c.name) == n), None)
 
 
 def role_for_level(guild: discord.Guild, level_idx: int) -> discord.Role | None:

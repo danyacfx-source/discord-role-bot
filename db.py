@@ -1,5 +1,6 @@
 import random
 import sqlite3
+from contextlib import contextmanager
 
 from config import DB_PATH, LEVELS
 
@@ -7,8 +8,9 @@ XP_MIN = 15
 XP_MAX = 25
 
 
-def db_connect():
-    conn = sqlite3.connect(DB_PATH)
+def _init_db():
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS members (
             guild_id INTEGER NOT NULL,
@@ -41,26 +43,36 @@ def db_connect():
             "UPDATE members SET xp = points * 20 WHERE xp = 0 AND points > 0"
         )
         conn.commit()
-    return conn
+    conn.close()
+
+
+_init_db()
+
+
+@contextmanager
+def _connect():
+    conn = sqlite3.connect(str(DB_PATH), timeout=10)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def add_message(guild_id: int, user_id: int) -> tuple[int, int]:
     xp_gain = random.randint(XP_MIN, XP_MAX)
-    conn = db_connect()
-    conn.execute(
-        """INSERT INTO members (guild_id, user_id, points, xp)
-           VALUES (?, ?, 1, ?)
-           ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1, xp = xp + ?""",
-        (guild_id, user_id, xp_gain, xp_gain),
-    )
-    conn.commit()
-    cur = conn.execute(
-        "SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?",
-        (guild_id, user_id),
-    )
-    row = cur.fetchone()
-    conn.close()
-    return row
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO members (guild_id, user_id, points, xp)
+               VALUES (?, ?, 1, ?)
+               ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1, xp = xp + ?""",
+            (guild_id, user_id, xp_gain, xp_gain),
+        )
+        conn.commit()
+        cur = conn.execute(
+            "SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+        return cur.fetchone()
 
 
 def get_points(guild_id: int, user_id: int) -> int:
@@ -68,26 +80,22 @@ def get_points(guild_id: int, user_id: int) -> int:
     return row[0] if row else 0
 
 
-def get_stats(guild_id: int, user_id: int) -> tuple[int, int] | None:
-    conn = db_connect()
-    cur = conn.execute(
-        "SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?",
-        (guild_id, user_id),
-    )
-    row = cur.fetchone()
-    conn.close()
-    return row
+def get_stats(guild_id: int, user_id: int):
+    with _connect() as conn:
+        cur = conn.execute(
+            "SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+        return cur.fetchone()
 
 
 def get_leaderboard(guild_id: int, limit: int = 10) -> list[tuple[int, int]]:
-    conn = db_connect()
-    cur = conn.execute(
-        "SELECT user_id, points FROM members WHERE guild_id = ? ORDER BY points DESC LIMIT ?",
-        (guild_id, limit),
-    )
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    with _connect() as conn:
+        cur = conn.execute(
+            "SELECT user_id, points FROM members WHERE guild_id = ? ORDER BY points DESC LIMIT ?",
+            (guild_id, limit),
+        )
+        return cur.fetchall()
 
 
 def level_index_for(points: int) -> int:
@@ -120,66 +128,59 @@ def xp_in_level(xp: int, level: int) -> int:
 
 
 def counter_get(channel: str, name: str) -> int:
-    conn = db_connect()
-    row = conn.execute(
-        "SELECT value FROM counters WHERE channel = ? AND name = ?",
-        (channel, name),
-    ).fetchone()
-    conn.close()
-    return row[0] if row else 0
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT value FROM counters WHERE channel = ? AND name = ?",
+            (channel, name),
+        ).fetchone()
+        return row[0] if row else 0
 
 
 def counter_add(channel: str, name: str, delta: int) -> int:
-    conn = db_connect()
-    conn.execute(
-        """INSERT INTO counters (channel, name, value) VALUES (?, ?, ?)
-           ON CONFLICT(channel, name) DO UPDATE SET value = value + ?""",
-        (channel, name, delta, delta),
-    )
-    conn.commit()
-    value = conn.execute(
-        "SELECT value FROM counters WHERE channel = ? AND name = ?",
-        (channel, name),
-    ).fetchone()[0]
-    conn.close()
-    return value
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO counters (channel, name, value) VALUES (?, ?, ?)
+               ON CONFLICT(channel, name) DO UPDATE SET value = value + ?""",
+            (channel, name, delta, delta),
+        )
+        conn.commit()
+        value = conn.execute(
+            "SELECT value FROM counters WHERE channel = ? AND name = ?",
+            (channel, name),
+        ).fetchone()[0]
+        return value
 
 
 def counter_list(channel: str) -> list[tuple[str, int]]:
-    conn = db_connect()
-    rows = conn.execute(
-        "SELECT name, value FROM counters WHERE channel = ? ORDER BY value DESC",
-        (channel,),
-    ).fetchall()
-    conn.close()
-    return rows
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT name, value FROM counters WHERE channel = ? ORDER BY value DESC",
+            (channel,),
+        ).fetchall()
+        return rows
 
 
 def season_reset(guild_id: int) -> None:
-    conn = db_connect()
-    conn.execute("DELETE FROM season_members WHERE guild_id = ?", (guild_id,))
-    conn.commit()
-    conn.close()
+    with _connect() as conn:
+        conn.execute("DELETE FROM season_members WHERE guild_id = ?", (guild_id,))
+        conn.commit()
 
 
 def season_add_message(guild_id: int, user_id: int) -> None:
-    conn = db_connect()
-    conn.execute(
-        """INSERT INTO season_members (guild_id, user_id, points)
-           VALUES (?, ?, 1)
-           ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1""",
-        (guild_id, user_id),
-    )
-    conn.commit()
-    conn.close()
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO season_members (guild_id, user_id, points)
+               VALUES (?, ?, 1)
+               ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1""",
+            (guild_id, user_id),
+        )
+        conn.commit()
 
 
 def get_season_leaderboard(guild_id: int, limit: int = 10) -> list[tuple[int, int]]:
-    conn = db_connect()
-    cur = conn.execute(
-        "SELECT user_id, points FROM season_members WHERE guild_id = ? ORDER BY points DESC LIMIT ?",
-        (guild_id, limit),
-    )
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    with _connect() as conn:
+        cur = conn.execute(
+            "SELECT user_id, points FROM season_members WHERE guild_id = ? ORDER BY points DESC LIMIT ?",
+            (guild_id, limit),
+        )
+        return cur.fetchall()

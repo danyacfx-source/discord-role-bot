@@ -1,4 +1,6 @@
+import re
 import time
+from string import Template
 
 from db import counter_add, counter_get, counter_list
 from config import CONFIG
@@ -128,16 +130,16 @@ class CommandHandler:
             return
         self._cooldowns[key] = now
         text = cmd.get("text", "")
-        if args and "{args}" in text:
-            text = text.replace("{args}", args)
-        try:
-            text = text.format(user=author.name, channel=message.channel.name)
-        except (KeyError, IndexError):
-            pass
+        text = Template(text).safe_substitute(
+            user=author.name,
+            channel=message.channel.name,
+            args=args,
+        )
         await message.channel.send(text)
 
     async def _list_commands(self, message):
-        names = set(self.commands) | set(self.counter_names) | {"tod", "add", "квест", "карта", "аллергия", "музыка", "vote", "стат", "рейды", "вопрос"}
+        public = {n for n, cmd in self.commands.items() if not cmd.get("mod_only")}
+        names = public | {"tod", "add", "квест", "карта", "аллергия", "музыка", "vote", "стат", "рейды", "вопрос"}
         listing = ", ".join(self.prefix + n for n in sorted(names))
         await message.channel.send(f"Доступные команды: {listing}")
 
@@ -167,6 +169,12 @@ class CommandHandler:
             text = " | ".join(f"{n}: {v}" for n, v in rows if n != "tod")
             await message.channel.send(f"📦 Лут: {text}")
             return
+        key = ("add", message.author.name.lower())
+        now = time.time()
+        last = self._cooldowns.get(key, 0)
+        if now - last < 15:
+            return
+        self._cooldowns[key] = now
         parts = args.split(maxsplit=1)
         item = parts[0].lower()
         delta = 1

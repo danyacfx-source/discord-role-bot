@@ -329,6 +329,8 @@ class TempVoice(commands.Cog):
 
         if before.channel and _is_managed(before.channel):
             vc = before.channel
+            if before.channel == after.channel:
+                return
             async with _channel_lock(vc.id):
                 remaining = [m for m in vc.members if not m.bot]
                 if not remaining:

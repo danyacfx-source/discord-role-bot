@@ -76,6 +76,7 @@ class EmbedDraft:
             [
                 self.title,
                 self.description,
+                self.color is not None,
                 self.author_name,
                 self.footer_text,
                 self.thumbnail,
@@ -213,13 +214,14 @@ class FieldModal(discord.ui.Modal, title="Новое поле"):
 
 async def _refresh(interaction: discord.Interaction, draft: EmbedDraft):
     cog = interaction.client.get_cog("EmbedBuilder")
-    embed, view = cog.render(draft, interaction.guild)
+    embed, view = cog.render(draft, interaction.guild, owner_id=interaction.user.id)
     await interaction.response.edit_message(embed=embed, view=view)
 
 
 class EmbedBuilderView(discord.ui.View):
-    def __init__(self, draft: EmbedDraft | None = None, guild: discord.Guild | None = None):
+    def __init__(self, draft: EmbedDraft | None = None, guild: discord.Guild | None = None, owner_id: int = 0):
         super().__init__(timeout=None)
+        self.owner_id = owner_id
 
         if draft and draft.fields:
             options = [
@@ -267,7 +269,17 @@ class EmbedBuilderView(discord.ui.View):
     def _draft(self, interaction: discord.Interaction) -> EmbedDraft:
         return interaction.client.get_cog("EmbedBuilder").get_draft(interaction.user.id)
 
+    async def _check_owner(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "Это не ваш черновик.", ephemeral=True
+            )
+            return False
+        return True
+
     async def _on_target_channel(self, interaction: discord.Interaction):
+        if not await self._check_owner(interaction):
+            return
         values = (interaction.data or {}).get("values") or []
         draft = self._draft(interaction)
         if values:
@@ -275,6 +287,8 @@ class EmbedBuilderView(discord.ui.View):
         await _refresh(interaction, draft)
 
     async def _on_delete_field(self, interaction: discord.Interaction):
+        if not await self._check_owner(interaction):
+            return
         values = (interaction.data or {}).get("values") or []
         draft = self._draft(interaction)
         if values:
@@ -285,46 +299,66 @@ class EmbedBuilderView(discord.ui.View):
 
     @discord.ui.button(label="✏️ Заголовок", style=discord.ButtonStyle.secondary, custom_id="embed_title", row=0)
     async def btn_title(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(TitleModal())
 
     @discord.ui.button(label="📝 Описание", style=discord.ButtonStyle.secondary, custom_id="embed_desc", row=0)
     async def btn_desc(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(DescriptionModal())
 
     @discord.ui.button(label="🎨 Цвет", style=discord.ButtonStyle.secondary, custom_id="embed_color", row=0)
     async def btn_color(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(ColorModal())
 
     @discord.ui.button(label="🕒 Время", style=discord.ButtonStyle.secondary, custom_id="embed_time", row=0)
     async def btn_time(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         draft = self._draft(interaction)
         draft.timestamp = not draft.timestamp
         await _refresh(interaction, draft)
 
     @discord.ui.button(label="🧩 Поле", style=discord.ButtonStyle.primary, custom_id="embed_add_field", row=1)
     async def btn_add_field(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(FieldModal())
 
     @discord.ui.button(label="🖼 Медиа", style=discord.ButtonStyle.secondary, custom_id="embed_media", row=1)
     async def btn_media(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(MediaModal())
 
     @discord.ui.button(label="👤 Автор", style=discord.ButtonStyle.secondary, custom_id="embed_author", row=1)
     async def btn_author(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(AuthorModal())
 
     @discord.ui.button(label="📌 Футер", style=discord.ButtonStyle.secondary, custom_id="embed_footer", row=1)
     async def btn_footer(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         await interaction.response.send_modal(FooterModal())
 
     @discord.ui.button(label="🗑 Сброс", style=discord.ButtonStyle.danger, custom_id="embed_reset", row=2)
     async def btn_reset(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         cog = interaction.client.get_cog("EmbedBuilder")
         cog.drafts[interaction.user.id] = EmbedDraft()
         await _refresh(interaction, cog.drafts[interaction.user.id])
 
     @discord.ui.button(label="🚀 Отправить", style=discord.ButtonStyle.success, custom_id="embed_send", row=2)
     async def btn_send(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not await self._check_owner(interaction):
+            return
         draft = self._draft(interaction)
         if draft.is_empty():
             await interaction.response.send_message(
@@ -355,14 +389,18 @@ class EmbedBuilderView(discord.ui.View):
 
 
 class EmbedBuilder(commands.Cog):
+    MAX_DRAFTS = 200
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.drafts: dict[int, EmbedDraft] = {}
 
     def get_draft(self, user_id: int) -> EmbedDraft:
+        if len(self.drafts) > self.MAX_DRAFTS:
+            self.drafts.clear()
         return self.drafts.setdefault(user_id, EmbedDraft())
 
-    def render(self, draft: EmbedDraft, guild: discord.Guild):
+    def render(self, draft: EmbedDraft, guild: discord.Guild, owner_id: int = 0):
         if draft.is_empty():
             embed = discord.Embed(
                 title="🎨 Конструктор эмбеда",
@@ -374,14 +412,15 @@ class EmbedBuilder(commands.Cog):
             )
         else:
             embed = draft.to_embed()
-        view = EmbedBuilderView(draft=draft, guild=guild)
+        view = EmbedBuilderView(draft=draft, guild=guild, owner_id=owner_id)
         return embed, view
 
     @app_commands.command(name="embed", description="Конструктор эмбеда (как message.style)")
     @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
     async def embed(self, interaction: discord.Interaction):
         draft = self.get_draft(interaction.user.id)
-        embed, view = self.render(draft, interaction.guild)
+        embed, view = self.render(draft, interaction.guild, owner_id=interaction.user.id)
         await interaction.response.send_message(embed=embed, view=view)
 
 

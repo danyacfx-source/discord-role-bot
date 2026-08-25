@@ -41,15 +41,18 @@ class ReactionRoles(commands.Cog):
                 return
         async for old in channel.history(limit=20):
             if old.author.id == self.bot.user.id and old.embeds:
+                footer = (old.embeds[0].footer.text or "").strip()
+                if footer != "Нажми на реакцию под этим сообщением":
+                    continue
                 msg = old
                 try:
                     await msg.edit(embed=embed)
                 except discord.HTTPException:
                     pass
                 await self._sync_reactions(msg, roles)
-                break
-        else:
-            msg = await channel.send(embed=embed)
+                self._panel_message_id = msg.id
+                return
+        msg = await channel.send(embed=embed)
         self._panel_message_id = msg.id
 
     @staticmethod

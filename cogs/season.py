@@ -17,6 +17,15 @@ class Season(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def _resolve_member(self, guild, user_id):
+        member = guild.get_member(user_id)
+        if member is not None:
+            return member
+        try:
+            return await guild.fetch_member(user_id)
+        except (discord.NotFound, discord.HTTPException):
+            return None
+
     @app_commands.command(name="season_top", description="Топ активности за текущий сезон")
     @app_commands.guild_only()
     async def season_top(self, interaction: discord.Interaction):
@@ -26,9 +35,10 @@ class Season(commands.Cog):
                 "Сезон только начался — данных пока нет."
             )
             return
+        await interaction.response.defer()
         lines = []
         for pos, (user_id, points) in enumerate(rows, start=1):
-            member = interaction.guild.get_member(user_id)
+            member = await self._resolve_member(interaction.guild, user_id)
             name = member.display_name if member else f"Пользователь {user_id}"
             medal = MEDALS[pos - 1] if pos <= 3 else f"**{pos}.**"
             lines.append(f"{medal} {name} — {points} сообщений")
@@ -37,7 +47,7 @@ class Season(commands.Cog):
             description="\n".join(lines),
             color=discord.Color.gold(),
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="season_end", description="Подвести итоги сезона: наградить топ-3 и сбросить счётчики")
     @app_commands.guild_only()
@@ -65,7 +75,7 @@ class Season(commands.Cog):
 
         awarded = []
         for pos, (user_id, points) in enumerate(rows, start=1):
-            member = guild.get_member(user_id)
+            member = await self._resolve_member(guild, user_id)
             role = discord.utils.get(guild.roles, name=reward_names[pos - 1])
             if member is None or role is None:
                 awarded.append(f"{MEDALS[pos-1]} {user_id}: пропущен (нет участника/роли)")

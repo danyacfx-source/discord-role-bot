@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from config import CONFIG
+from config import CONFIG, GUILD_ID
 
 log = logging.getLogger("permissions")
 
@@ -18,12 +18,15 @@ class Permissions(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if not self.auto_apply or not self.categories:
+        if not self.auto_apply or not self.categories or not GUILD_ID:
             return
-        for guild in self.bot.guilds:
-            lines = await self.apply_all(guild)
-            for line in lines:
-                log.info("Права категорий %s: %s", guild.name, line)
+        guild = self.bot.get_guild(GUILD_ID)
+        if guild is None:
+            log.warning("Permissions: гильдия %s не найдена", GUILD_ID)
+            return
+        lines = await self.apply_all(guild)
+        for line in lines:
+            log.info("Права категорий %s: %s", guild.name, line)
 
     def _resolve_role(self, guild: discord.Guild, name: str) -> discord.Role | None:
         if name == "@everyone":
@@ -31,7 +34,10 @@ class Permissions(commands.Cog):
         return discord.utils.get(guild.roles, name=name)
 
     async def apply_category(self, guild: discord.Guild, cat_id, spec) -> str:
-        category = guild.get_channel(int(cat_id))
+        try:
+            category = guild.get_channel(int(cat_id))
+        except (ValueError, TypeError):
+            return f"❌ Ключ категории «{cat_id}» не является числом"
         if category is None or not isinstance(category, discord.CategoryChannel):
             return f"❌ Категория {cat_id} не найдена"
         try:
@@ -39,7 +45,7 @@ class Permissions(commands.Cog):
                 role = self._resolve_role(guild, rule["role"])
                 if role is None:
                     return f"❌ {category.name}: роль «{rule['role']}» не найдена"
-                kwargs = {k: bool(v) for k, v in rule.items() if k != "role"}
+                kwargs = {k: bool(v) for k, v in rule.items() if k != "role" and v is not None}
                 await category.set_permissions(
                     role, reason="Права категорий из конфига", **kwargs
                 )
