@@ -103,6 +103,7 @@ class StreamLiveNotifier:
                 return
             if self._notified_stream_id:
                 log.info("StreamLive: стрим завершён")
+                await self._post_stream_summary()
             from twitch_bot.stream_state import set_stream_live
             set_stream_live(False)
             await self._notify_offline()
@@ -144,6 +145,39 @@ class StreamLiveNotifier:
         except Exception:
             log.exception("StreamLive: ошибка поиска эмбеда стрима")
         return None
+
+    async def _post_stream_summary(self):
+        from twitch_bot.stream_state import stream_uptime
+        channel = self.discord_bot.get_channel(self.config.get("channel_id", 0))
+        if channel is None:
+            return
+        uptime = stream_uptime()
+        h, rem = divmod(int(uptime), 3600)
+        m, s = divmod(rem, 60)
+        uptime_str = f"{h}ч {m}м" if h else f"{m}м {с}с"
+        peak = self._peak_viewers
+        engagement = self.discord_bot.get_cog("Engagement")
+        top_chatters = []
+        if engagement:
+            channel_name = self.config.get("channel", "")
+            relevant = {k: v for k, v in engagement.loyalty.items() if v.get("channel") == channel_name}
+            sorted_users = sorted(relevant.values(), key=lambda x: x.get("total", 0), reverse=True)[:5]
+            for u in sorted_users:
+                top_chatters.append(f"**{u['user']}** — {u['total']} очков")
+        embed = discord.Embed(
+            title="📊 Итоги стрима",
+            color=0x9146FF,
+        )
+        embed.add_field(name="Длительность", value=uptime_str, inline=True)
+        embed.add_field(name="Пик зрителей", value=str(peak), inline=True)
+        if top_chatters:
+            embed.add_field(name="Топ чаттеров", value="\n".join(top_chatters), inline=False)
+        streamer = self.config.get("channel", "")
+        embed.set_footer(text=f"Следующий стрим — подписывайся! twitch.tv/{streamer}")
+        try:
+            await channel.send(embed=embed)
+        except Exception:
+            log.exception("StreamLive: ошибка отправки итогов стрима")
 
     async def _notify_offline(self):
         channel = self.discord_bot.get_channel(self.config.get("channel_id", 0))

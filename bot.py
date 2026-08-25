@@ -17,6 +17,8 @@ from cogs.reaction_roles import ReactionRoles
 from cogs.season import Season
 from cogs.overlay import Overlay
 from cogs.youtube import YouTube
+from cogs.giveaways import Giveaways
+from cogs.engagement import Engagement, TwitchChatGames
 from notify import DiscordLogHandler, mark_ready, notify_loop
 from twitch_bot.eft_logs import EftLogWatcher
 
@@ -99,6 +101,9 @@ async def main():
         await bot.add_cog(Season(bot))
         await bot.add_cog(Overlay(bot))
         await bot.add_cog(YouTube(bot))
+        await bot.add_cog(Giveaways(bot))
+        await bot.add_cog(Engagement(bot))
+        await bot.add_cog(TwitchChatGames(bot))
         await bot.start(TOKEN)
 
 

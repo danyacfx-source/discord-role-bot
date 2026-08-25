@@ -117,6 +117,16 @@ class CommandHandler:
         if name == "clearqueue":
             await self._cmd_song_clear(message)
             return
+        engagement_cmds = {
+            "монетка", "coin", "рулетка", "roulette", "баланс", "balance",
+            "деньги", "daily", "голосование", "poll", "голос", "vote",
+            "итоги", "results", "предсказание", "predict", "стрик", "streak",
+        }
+        if name in engagement_cmds:
+            tc_games = self.bot.discord_bot.get_cog("TwitchChatGames") if hasattr(self.bot, "discord_bot") else None
+            if tc_games:
+                await tc_games.handle_command(author.name.lower(), content, message.channel)
+            return
         cmd = self.commands.get(name)
         if cmd is None:
             return

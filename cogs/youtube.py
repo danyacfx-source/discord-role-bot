@@ -25,6 +25,8 @@ class YouTube(commands.Cog):
         self._task = None
         self.api = YouTubeAPI(self.config)
         self._moderation_task = None
+        self._video_check_task = None
+        self._known_video_ids: set = set()
 
     async def cog_load(self):
         if not self.config.get("enabled", False):
@@ -37,6 +39,7 @@ class YouTube(commands.Cog):
         )
         self._task = self.bot.loop.create_task(self._run_youtube())
         self._moderation_task = self.bot.loop.create_task(self._comment_moderation_loop())
+        self._video_check_task = self.bot.loop.create_task(self._new_video_check_loop())
         log.info("YouTube-модуль запущен: @%s", self.config.get("channel"))
 
     async def cog_unload(self):
@@ -46,6 +49,8 @@ class YouTube(commands.Cog):
             self._task.cancel()
         if self._moderation_task:
             self._moderation_task.cancel()
+        if self._video_check_task:
+            self._video_check_task.cancel()
         await self.api.close()
 
     async def _run_youtube(self):
@@ -84,6 +89,55 @@ class YouTube(commands.Cog):
                 log.exception("YouTube: ошибка модерации комментариев")
 
             await asyncio.sleep(interval)
+
+    async def _new_video_check_loop(self):
+        await self.bot.wait_until_ready()
+        await asyncio.sleep(60)
+        handle = self.config.get("channel", "Dendosich")
+        channel_id = None
+        notify_id = self.config.get("notify_channel_id", 0)
+        while not self.bot.is_closed():
+            try:
+                if not channel_id:
+                    item = await self.api.get_channel_id(handle)
+                    if item:
+                        channel_id = item["id"]
+                if channel_id:
+                    videos = await self.api.get_recent_videos(channel_id, max_results=5)
+                    for v in videos:
+                        vid = v.get("id", {}).get("videoId")
+                        if not vid or vid in self._known_video_ids:
+                            continue
+                        self._known_video_ids.add(vid)
+                        if len(self._known_video_ids) > 200:
+                            self._known_video_ids = set(list(self._known_video_ids)[-100:])
+                        snippet = v.get("snippet", {})
+                        title = snippet.get("title", "?")
+                        thumb = snippet.get("thumbnails", {}).get("high", {}).get("url", "")
+                        live_status = snippet.get("liveBroadcastContent", "")
+                        if live_status == "live":
+                            continue
+                        if notify_id and self._known_video_ids and len(self._known_video_ids) > 1:
+                            ch = self.bot.get_channel(notify_id)
+                            if ch:
+                                embed = discord.Embed(
+                                    title=f"📹 Новое видео: {title}",
+                                    url=f"https://www.youtube.com/watch?v={vid}",
+                                    color=0xFF0000,
+                                )
+                                if thumb:
+                                    embed.set_thumbnail(url=thumb)
+                                ping_role = self.config.get("ping_role_id", 0)
+                                content = f"<@&{ping_role}>" if ping_role else None
+                                try:
+                                    await ch.send(content=content, embed=embed)
+                                except Exception:
+                                    log.exception("YouTube: ошибка отправки уведомления о видео")
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                log.exception("YouTube: ошибка проверки новых видео")
+            await asyncio.sleep(self.config.get("check_seconds", 300))
 
     @app_commands.command(name="yt_stats", description="Статистика YouTube канала")
     async def yt_stats(self, interaction: discord.Interaction):
