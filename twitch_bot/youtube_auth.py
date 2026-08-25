@@ -8,10 +8,11 @@ YouTube OAuth2 авторизация — запустить один раз.
 5. Запусти: python -m twitch_bot.youtube_auth
 6. Открой ссылку в браузере, авторизуйся
 7. Вставь код обратно в консоль
-8. Токены сохранятся в config.json
+8. Refresh token сохранится в .env
 """
 
 import json
+import os
 import secrets
 import sys
 from urllib.parse import urlencode, parse_qs
@@ -102,7 +103,7 @@ def get_access_token(config):
     refresh_token = yt.get("refresh_token", "")
 
     if not client_id or not client_secret:
-        print("Впиши client_id и client_secret в config.json -> youtube")
+        print("Секреты YouTube не найдены. Запусти setup_youtube.py или добавь в .env")
         return None
 
     if refresh_token:
@@ -123,7 +124,7 @@ def main():
     client_secret = yt.get("client_secret", "")
 
     if not client_id or not client_secret:
-        print("Впиши client_id и client_secret в config.json секцию youtube")
+        print("Секреты YouTube не найдены. Запусти setup_youtube.py или добавь в .env")
         sys.exit(1)
 
     _oauth_state = secrets.token_urlsafe(32)
@@ -159,9 +160,15 @@ def main():
     tokens = exchange_code(client_id, client_secret, CallbackHandler.code)
 
     if "refresh_token" in tokens:
-        yt["refresh_token"] = tokens["refresh_token"]
-        save_config(config, config_path)
-        print(f"\nRefresh token сохранён в {config_path}")
+        env_path = os.path.join(os.path.dirname(config_path), ".env")
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = [l for l in f.readlines() if not l.startswith("YOUTUBE_REFRESH_TOKEN")]
+        with open(env_path, "a", encoding="utf-8") as f:
+            f.writelines(lines)
+            f.write(f"YOUTUBE_REFRESH_TOKEN={tokens['refresh_token']}\n")
+        print(f"\nRefresh token сохранён в .env")
         print("Теперь бот сможет модерировать YouTube чат!")
     else:
         print("Refresh token не получен. Попробуй снова.")

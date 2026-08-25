@@ -14,6 +14,7 @@ import threading
 import time
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
 REDIRECT_URI = "http://localhost:8090/callback"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -32,6 +33,19 @@ def load_config():
 def save_config(cfg):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+
+def save_env_secrets(client_id, client_secret, refresh_token):
+    env_path = ENV_PATH
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = [l for l in f.readlines() if not l.startswith("YOUTUBE_")]
+    with open(env_path, "a", encoding="utf-8") as f:
+        f.writelines(lines)
+        f.write(f"YOUTUBE_CLIENT_ID={client_id}\n")
+        f.write(f"YOUTUBE_CLIENT_SECRET={client_secret}\n")
+        f.write(f"YOUTUBE_REFRESH_TOKEN={refresh_token}\n")
 
 
 class CallbackHandler(BaseHTTPRequestHandler):
@@ -194,10 +208,12 @@ def main():
 
     cfg = load_config()
     yt = cfg.setdefault("youtube", {})
+    has_token = os.environ.get("YOUTUBE_REFRESH_TOKEN") or yt.get("refresh_token")
 
-    if yt.get("refresh_token"):
+    if has_token:
         print("Refresh token уже настроен!")
-        print(f"client_id: {yt.get('client_id', '???')[:20]}...")
+        cid = os.environ.get("YOUTUBE_CLIENT_ID", "") or yt.get("client_id", "")
+        print(f"client_id: {cid[:20]}...")
         print()
         choice = input("Настроить заново? (y/n): ").strip().lower()
         if choice != "y":
@@ -212,12 +228,10 @@ def main():
     client_id, client_secret = step4_input()
     refresh_token = step5_auth(client_id, client_secret)
 
-    yt["client_id"] = client_id
-    yt["client_secret"] = client_secret
-    yt["refresh_token"] = refresh_token
+    save_env_secrets(client_id, client_secret, refresh_token)
+    yt = cfg.setdefault("youtube", {})
     yt.setdefault("moderation", {})["ban_on_violation"] = True
     yt.setdefault("moderation", {})["ban_duration_seconds"] = 300
-
     save_config(cfg)
 
     print()
@@ -225,7 +239,8 @@ def main():
     print("  ГОТОВО!")
     print("=" * 60)
     print()
-    print("Настройка сохранена в config.json")
+    print("Секреты сохранены в .env")
+    print("Настройки модерации сохранены в config.json")
     print("Теперь бот может:")
     print("  - Читать YouTube чат через API")
     print("  - Удалять сообщения с нарушениями")
