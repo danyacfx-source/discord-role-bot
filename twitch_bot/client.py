@@ -7,6 +7,7 @@ import twitchio
 from twitch_bot.twitch_cmds import CommandHandler
 from twitch_bot.moderation import Moderation
 from twitch_bot.greetings import Greetings
+from twitch_bot.chat_overlay import push_chat
 
 log = logging.getLogger("twitch")
 
@@ -103,3 +104,18 @@ class TwitchChatClient(twitchio.Client):
         await self.chat_commands.handle(message)
         if (self.cfg.get("greetings") or {}).get("welcome_new_chatters", True):
             await self.greetings.handle(message)
+        try:
+            role = (
+                "owner"
+                if author.is_broadcaster
+                else "mod"
+                if author.is_mod
+                else "vip"
+                if getattr(author, "is_vip", False)
+                else "sub"
+                if getattr(author, "is_subscriber", False)
+                else ""
+            )
+            push_chat("twitch", author.name, content, role=role, avatar=getattr(author, "avatar_url", "") or "")
+        except Exception:
+            log.debug("Twitch: не удалось добавить сообщение в чат-оверлей", exc_info=True)

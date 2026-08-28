@@ -11,6 +11,7 @@ from collections import defaultdict, deque
 import aiohttp
 
 from twitch_bot.youtube_token import get_token_manager
+from twitch_bot.chat_overlay import push_chat
 
 _yt_chat_buffer: deque = deque(maxlen=50)
 _yt_chat_seen_ids: set = set()
@@ -817,6 +818,13 @@ class YouTubeChatClient:
                     "avatar": author_details.get("profileImageUrl", ""),
                     "time": time.time(),
                 })
+                push_chat(
+                    "yt",
+                    author_name,
+                    display_text,
+                    role="owner" if is_owner else "mod" if is_mod else "",
+                    avatar=author_details.get("profileImageUrl", ""),
+                )
 
             log.info("YouTube: %s%s: %s", badge, author_name, display_text[:80])
             if self.bridge:

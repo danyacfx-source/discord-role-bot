@@ -8,6 +8,7 @@ from aiohttp import web
 from config import OVERLAY, CONFIG
 from db import counter_list
 from twitch_bot import overlay_state
+from twitch_bot.chat_overlay import get_chat_messages
 from twitch_bot.raid_state import state as raid_state
 from twitch_bot.song_queue import SongQueue
 from twitch_bot.youtube_chat import get_yt_chat_messages
@@ -283,12 +284,94 @@ setInterval(load, 2000);
 """
 
 
+POPUP_CHAT_PAGE = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Pop-up Chat</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: transparent; font-family: 'Segoe UI', Roboto, Arial, sans-serif; width: 380px; overflow: hidden; }
+  #wrap { transition: opacity .6s ease; }
+  #wrap.idle { opacity: .12; }
+  #chat { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 6px; }
+  .msg {
+    max-width: 100%;
+    background: rgba(12, 14, 20, .58);
+    border: 1px solid rgba(255,255,255,.06);
+    border-left: 3px solid #9146ff;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    line-height: 1.35;
+    color: #e8e8ee;
+    animation: pop .22s ease-out;
+    word-break: break-word;
+  }
+  .msg.src-yt { border-left-color: #ff1f1f; }
+  .msg .av { width: 18px; height: 18px; border-radius: 50%; margin-right: 8px; vertical-align: middle; object-fit: cover; display: none; }
+  .msg .nick { font-weight: 700; margin-right: 6px; }
+  .msg .nick.twitch { color: #b070ff; }
+  .msg .nick.yt { color: #ff6b6b; }
+  .msg .nick.owner { color: #ffd700; }
+  .msg .nick.mod { color: #5e84f1; }
+  .msg .nick.vip { color: #e46bff; }
+  .msg .nick.sub { color: #9b59b6; }
+  .msg .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 4px; margin-right: 6px; vertical-align: middle; }
+  .msg .tag.owner { background: #ffd700; color: #000; }
+  .msg .tag.mod { background: #5e84f1; color: #fff; }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <div id="wrap"><div id="chat"></div></div>
+<script>
+let lastId = 0;
+let lastNew = 0;
+async function load() {
+  try {
+    const r = await fetch('/chat/api?token=__OVERLAY_TOKEN__');
+    const d = await r.json();
+    const ms = d.messages || [];
+    let max = 0;
+    for (const m of ms) if (m.id > max) max = m.id;
+    if (ms.length && max < lastId) lastId = 0;
+    const newMs = ms.filter(m => m.id > lastId);
+    for (const m of newMs) { lastId = m.id; append(m); lastNew = Date.now(); }
+  } catch (e) {}
+}
+function append(m) {
+  const box = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg src-' + m.source;
+  let av = m.avatar ? '<img class="av" src="' + esc(m.avatar) + '" onload="this.style.display=\'inline-block\'" onerror="this.style.display=\'none\'">' : '';
+  let tag = '';
+  if (m.role === 'owner') tag = '<span class="tag owner">OWNER</span>';
+  else if (m.role === 'mod') tag = '<span class="tag mod">MOD</span>';
+  div.innerHTML = av + tag + '<span class="nick ' + m.role + ' ' + m.source + '">' + esc(m.author) + ':</span><span class="text"> ' + esc(m.text) + '</span>';
+  box.appendChild(div);
+  while (box.children.length > 10) box.removeChild(box.firstChild);
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+setInterval(load, 2000);
+setInterval(function () {
+  const w = document.getElementById('wrap');
+  if (Date.now() - lastNew > 12000) w.classList.add('idle');
+  else w.classList.remove('idle');
+}, 1000);
+load();
+</script>
+</body>
+</html>
+"""
+
+
 class Overlay(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._runner = None
         self._site = None
-        self._auth_token = secrets.token_urlsafe(32)
+        self._auth_token = OVERLAY.get("token") or secrets.token_urlsafe(32)
 
     async def _get_live(self):
         try:
@@ -391,6 +474,29 @@ class Overlay(commands.Cog):
         }
         return web.json_response(payload)
 
+    async def _chat_page(self, request):
+        html = POPUP_CHAT_PAGE.replace("__OVERLAY_TOKEN__", self._auth_token)
+        return web.Response(text=html, content_type="text/html")
+
+    async def _chat_api(self, request):
+        token = request.headers.get("X-Overlay-Token") or request.query.get("token")
+        if not secrets.compare_digest(token or "", self._auth_token):
+            return web.json_response({"error": "unauthorized"}, status=401)
+        payload = {
+            "messages": [
+                {
+                    "id": m["id"],
+                    "source": m["source"],
+                    "author": m["author"],
+                    "text": m["text"],
+                    "role": m["role"],
+                    "avatar": m["avatar"],
+                }
+                for m in get_chat_messages()
+            ],
+        }
+        return web.json_response(payload)
+
     async def cog_load(self):
         if not OVERLAY.get("enabled", False):
             log.info("Overlay отключён в конфиге")
@@ -400,6 +506,8 @@ class Overlay(commands.Cog):
         app.router.add_get("/overlay/api", self._api)
         app.router.add_get("/yt-chat", self._yt_chat_page)
         app.router.add_get("/yt-chat/api", self._yt_chat_api)
+        app.router.add_get("/chat", self._chat_page)
+        app.router.add_get("/chat/api", self._chat_api)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
         host = OVERLAY.get("host", "127.0.0.1")
