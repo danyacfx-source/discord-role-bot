@@ -36,6 +36,30 @@ def _init_db():
             PRIMARY KEY (guild_id, user_id)
         )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS birthdays (
+            user_id INTEGER PRIMARY KEY,
+            month INTEGER NOT NULL,
+            day INTEGER NOT NULL
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS giveaways (
+            id INTEGER PRIMARY KEY,
+            title TEXT,
+            prize TEXT,
+            description TEXT,
+            winner_count INTEGER,
+            end_time REAL,
+            channel_id INTEGER,
+            guild_id INTEGER,
+            message_id INTEGER,
+            author_id INTEGER,
+            min_days INTEGER DEFAULT 0,
+            participants TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'active'
+        )"""
+    )
     cols = [r[1] for r in conn.execute("PRAGMA table_info(members)")]
     if "xp" not in cols:
         conn.execute("ALTER TABLE members ADD COLUMN xp INTEGER NOT NULL DEFAULT 0")
@@ -184,3 +208,128 @@ def get_season_leaderboard(guild_id: int, limit: int = 10) -> list[tuple[int, in
             (guild_id, limit),
         )
         return cur.fetchall()
+
+
+def birthday_set(user_id: int, month: int, day: int) -> None:
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO birthdays (user_id, month, day) VALUES (?, ?, ?)
+               ON CONFLICT(user_id) DO UPDATE SET month = ?, day = ?""",
+            (user_id, month, day, month, day),
+        )
+        conn.commit()
+
+
+def birthday_get(user_id: int) -> tuple[int, int] | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT month, day FROM birthdays WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        return row
+
+
+def birthday_remove(user_id: int) -> None:
+    with _connect() as conn:
+        conn.execute("DELETE FROM birthdays WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+
+def birthdays_all() -> list[tuple[int, int, int]]:
+    with _connect() as conn:
+        return conn.execute("SELECT user_id, month, day FROM birthdays").fetchall()
+
+
+def giveaway_save(ga: dict) -> None:
+    with _connect() as conn:
+        conn.execute(
+            """INSERT INTO giveaways
+               (id, title, prize, description, winner_count, end_time, channel_id,
+                guild_id, message_id, author_id, min_days, participants, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 end_time = excluded.end_time,
+                 message_id = excluded.message_id,
+                 participants = excluded.participants,
+                 status = excluded.status""",
+            (
+                ga["id"],
+                ga["title"],
+                ga["prize"],
+                ga["description"],
+                ga["winner_count"],
+                ga["end_time"],
+                ga["channel_id"],
+                ga["guild_id"],
+                ga.get("message_id") or 0,
+                ga.get("author_id") or 0,
+                ga.get("min_days") or 0,
+                ga.get("participants_json", "[]"),
+                ga.get("status", "active"),
+            ),
+        )
+        conn.commit()
+
+
+def giveaways_load_active() -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, title, prize, description, winner_count, end_time, channel_id, "
+            "guild_id, message_id, author_id, min_days, participants "
+            "FROM giveaways WHERE status = 'active'"
+        ).fetchall()
+    result = []
+    for row in rows:
+        ga = {
+            "id": row[0],
+            "title": row[1],
+            "prize": row[2],
+            "description": row[3],
+            "winner_count": row[4],
+            "end_time": row[5],
+            "channel_id": row[6],
+            "guild_id": row[7],
+            "message_id": row[8],
+            "author_id": row[9],
+            "min_days": row[10],
+            "participants": row[11],
+        }
+        result.append(ga)
+    return result
+
+
+def giveaways_find_by_message(message_id: int) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT id, title, prize, description, winner_count, end_time, channel_id, "
+            "guild_id, message_id, author_id, min_days, participants, status "
+            "FROM giveaways WHERE message_id = ?",
+            (message_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "id": row[0],
+        "title": row[1],
+        "prize": row[2],
+        "description": row[3],
+        "winner_count": row[4],
+        "end_time": row[5],
+        "channel_id": row[6],
+        "guild_id": row[7],
+        "message_id": row[8],
+        "author_id": row[9],
+        "min_days": row[10],
+        "participants": row[11],
+        "status": row[12],
+    }
+
+
+def giveaway_set_participants(giveaway_id: int, participants: list[int], status: str = "active") -> None:
+    import json
+
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE giveaways SET participants = ?, status = ? WHERE id = ?",
+            (json.dumps(participants), status, giveaway_id),
+        )
+        conn.commit()

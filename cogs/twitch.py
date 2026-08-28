@@ -37,7 +37,7 @@ class Twitch(commands.Cog):
             log.info("Twitch-модуль отключён в конфиге (twitch.enabled=false)")
             return
         self.bridge = TwitchDiscordBridge(self.config, self.bot)
-        self.client = TwitchChatClient(self.config, self.bot.loop, self.bridge)
+        self.client = TwitchChatClient(self.config, self.bot.loop, self.bridge, self.bot)
         self.bridge.client = self.client
         self.bot.twitch_client = self.client
         self._task = self.bot.loop.create_task(self._run_twitch())

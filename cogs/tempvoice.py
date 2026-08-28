@@ -218,6 +218,7 @@ class TempChannelView(discord.ui.View):
 class TempVoice(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._started_cleanup = False
 
     def _temp_channels(self, guild: discord.Guild) -> list[discord.VoiceChannel]:
         result = []
@@ -255,7 +256,8 @@ class TempVoice(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if not self.cleanup_empty_channels.is_running():
+        if not self._started_cleanup:
+            self._started_cleanup = True
             self.cleanup_empty_channels.start()
         try:
             for guild in self.bot.guilds:
@@ -342,7 +344,11 @@ class TempVoice(commands.Cog):
                         temp_channel_owners.pop(vc.id, None)
                     except Exception as e:
                         logging.error("Ошибка удаления временного канала: %s", e)
-                elif vc.id in temp_channel_owners and temp_channel_owners[vc.id] == member.id:
+                elif (
+                    vc.id in temp_channel_owners
+                    and temp_channel_owners[vc.id] == member.id
+                    and (after.channel is None or after.channel.id != vc.id)
+                ):
                     new_owner = remaining[0]
                     temp_channel_owners[vc.id] = new_owner.id
                     logging.info("Владелец канала %s теперь %s", vc.name, new_owner)

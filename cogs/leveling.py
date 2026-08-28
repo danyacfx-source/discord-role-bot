@@ -7,6 +7,7 @@ from discord.ext import commands
 
 from config import (
     BOT_NAME,
+    CONFIG,
     EXCLUDE_ROLES,
     LEVELS,
     WHITELIST_CHANNELS,
@@ -69,6 +70,32 @@ class Leveling(commands.Cog):
         await self.update_roles(message.author, points, message.channel)
         season_add_message(message.guild.id, message.author.id)
 
+    async def _announce_level_up(self, member: discord.Member, idx: int, points: int):
+        channel_id = CONFIG.get("level_up_channel_id", 0)
+        if not channel_id:
+            return
+        ignore_roles = set(CONFIG.get("level_up_ignore_roles") or [])
+        if any(r.name in ignore_roles for r in member.roles):
+            return
+        channel = self.bot.get_channel(channel_id)
+        if channel is None:
+            return
+        role = role_for_level(member.guild, idx)
+        embed = discord.Embed(
+            description=(
+                f"{member.mention} добрался до уровня **{LEVELS[idx]['role_name']}**!\n"
+                f"📊 Сообщений: **{points}**"
+            ),
+            color=role.color if role else discord.Color.blue(),
+        )
+        embed.set_author(name=member.display_name, icon_url=member.display_avatar.url)
+        embed.set_footer(text=BOT_NAME)
+        try:
+            await channel.send(embed=embed)
+            logging.info("LevelUp: анонс уровня %s для %s", LEVELS[idx]["role_name"], member)
+        except discord.HTTPException:
+            logging.warning("LevelUp: не удалось отправить анонс для %s", member)
+
     async def _safe_remove(self, member: discord.Member, role: discord.Role):
         try:
             await member.remove_roles(role, reason="Обновление уровня активности")
@@ -107,13 +134,27 @@ class Leveling(commands.Cog):
                 member.guild.name,
             )
             return
+        old_roles = [
+            role_for_level(member.guild, i)
+            for i, lvl in enumerate(LEVELS)
+            if role_for_level(member.guild, i) is not None
+            and role_for_level(member.guild, i) in member.roles
+        ]
+        for r in old_roles:
+            await self._safe_remove(member, r)
         try:
             await member.add_roles(target_role, reason="Достигнут уровень активности")
-        except discord.Forbidden:
-            logging.error("Нет прав выдать роль %s для %s", target_role.name, member)
-            return
-        except discord.HTTPException:
-            logging.error("Ошибка выдачи роли %s для %s", target_role.name, member)
+        except (discord.Forbidden, discord.HTTPException):
+            logging.error(
+                "Нет прав на выдачу роли '%s' пользователю %s",
+                LEVELS[idx]["role_name"],
+                member,
+            )
+            for r in old_roles:
+                try:
+                    await member.add_roles(r, reason="Откат уровня (нет прав на новую роль)")
+                except discord.Forbidden:
+                    pass
             return
         for i, lvl in enumerate(LEVELS):
             r = role_for_level(member.guild, i)
@@ -126,6 +167,7 @@ class Leveling(commands.Cog):
             )
         except discord.Forbidden:
             pass
+        await self._announce_level_up(member, idx, points)
 
     @app_commands.command(name="level", description="Показать свой текущий уровень и XP")
     @app_commands.guild_only()

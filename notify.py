@@ -91,6 +91,20 @@ def _record_text(record: logging.LogRecord) -> str:
     return text
 
 
+def _short_traceback(record: logging.LogRecord) -> str:
+    if not record.exc_info or record.exc_info[0] is None:
+        return ""
+    tb = "".join(traceback.format_exception(*record.exc_info))
+    tb = _sanitize(tb)
+    lines = tb.strip().splitlines()
+    if len(lines) > 12:
+        lines = lines[:12] + ["  …"]
+    result = "\n".join(lines)
+    if len(result) > 3800:
+        result = result[:3800] + "\n…"
+    return result
+
+
 async def notify_loop(bot: discord.Client):
     await bot.wait_until_ready()
     await asyncio.sleep(10)
@@ -110,11 +124,22 @@ async def _post(bot: discord.Client, record: logging.LogRecord):
         print(f"Лог-канал {LOG_CHANNEL_ID} не найден", flush=True)
         return
     is_error = record.levelno >= logging.ERROR
+    logger_name = record.name or "?"
+    func = record.funcName or "?"
+    line = record.lineno
+    error_msg = _sanitize(record.getMessage())
+    if len(error_msg) > 900:
+        error_msg = error_msg[:900] + "…"
     embed = discord.Embed(
         title="⚠️ Ошибка" if is_error else "ℹ️ Лог",
-        description=f"```\n{_record_text(record)}\n```",
         color=discord.Color.red() if is_error else discord.Color.blurple(),
     )
+    embed.add_field(name="Модуль", value=f"`{logger_name}`", inline=True)
+    embed.add_field(name="Функция", value=f"`{func}():{line}`", inline=True)
+    embed.add_field(name="Ошибка", value=f"```\n{error_msg}\n```", inline=False)
+    trace = _short_traceback(record)
+    if trace:
+        embed.add_field(name="Traceback", value=f"```python\n{trace}\n```", inline=False)
     embed.set_footer(text=datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
     content = None
     if is_error and GUILD_ID:

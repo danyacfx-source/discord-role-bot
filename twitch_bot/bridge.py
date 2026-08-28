@@ -22,7 +22,7 @@ class TwitchDiscordBridge:
             return
         async with self._lock:
             self._queue.append(f"[Twitch] **{user}**: {content}")
-        if self._flush_task is None:
+        if self._flush_task is None or self._flush_task.done():
             self._flush_task = asyncio.create_task(self._flush_loop())
 
     async def on_discord_message(self, message):
@@ -40,17 +40,23 @@ class TwitchDiscordBridge:
         safe_name = re.sub(r"[^\w\s\-]", "", message.author.display_name)[:30]
         try:
             for ch in self.client.channels_map.values():
-                await ch.send(f"[Discord] {safe_name}: {text}")
+                try:
+                    await ch.send(f"[Discord] {safe_name}: {text}")
+                except Exception:
+                    log.exception("Ошибка отправки в Twitch-канал %s", getattr(ch, "name", ch))
         except Exception:
             log.exception("Ошибка отправки в Twitch из Discord")
 
     async def _flush_loop(self):
-        while True:
-            await asyncio.sleep(self.config.get("flush_interval", 2))
-            try:
-                await self._flush_now()
-            except Exception:
-                log.exception("Ошибка отправки пачки в Discord")
+        try:
+            while True:
+                await asyncio.sleep(self.config.get("flush_interval", 2))
+                try:
+                    await self._flush_now()
+                except Exception:
+                    log.exception("Ошибка отправки пачки в Discord")
+        finally:
+            self._flush_task = None
 
     async def _flush_now(self):
         async with self._lock:
@@ -63,13 +69,21 @@ class TwitchDiscordBridge:
             try:
                 channel = await self.discord_bot.fetch_channel(self.channel_id)
             except Exception:
-                log.warning("Bridge: канал Discord %s недоступен, %d сообщений потеряно", self.channel_id, len(batch))
+                log.warning(
+                    "Bridge: канал Discord %s недоступен, %d сообщений возвращено в очередь",
+                    self.channel_id,
+                    len(batch),
+                )
+                async with self._lock:
+                    self._queue.extend(batch)
                 return
         for chunk in self._chunks(batch, 1900):
             try:
                 await channel.send("\n".join(chunk))
             except Exception:
                 log.exception("Ошибка отправки сообщения в Discord")
+                async with self._lock:
+                    self._queue.extend(chunk)
 
     @staticmethod
     def _chunks(lines, limit):

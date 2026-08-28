@@ -20,6 +20,13 @@ from cogs.youtube import YouTube
 from cogs.giveaways import Giveaways
 from cogs.engagement import Engagement, TwitchChatGames
 from cogs.youtube_growth import YouTubeGrowth
+from cogs.server_stats import ServerStats
+from cogs.automod import DiscordAutomod
+from cogs.socials import Socials
+from cogs.poll import Poll
+from cogs.voice_xp import VoiceXP
+from cogs.birthdays import Birthdays
+from cogs.role_menu import RoleMenu
 from notify import DiscordLogHandler, mark_ready, notify_loop
 from twitch_bot.eft_logs import EftLogWatcher
 
@@ -50,14 +57,16 @@ async def on_ready():
     print(f"Бот запущен: {bot.user} (ID: {bot.user.id})", flush=True)
     for g in bot.guilds:
         print(f"СЕРВЕР: {g.name} | ID: {g.id}", flush=True)
-    try:
-        synced = await bot.tree.sync()
-        print(f"Синхронизировано команд: {len(synced)}", flush=True)
-        for g in bot.guilds:
-            guild_synced = await bot.tree.sync(guild=g)
-            print(f"Синхронизировано команд для гильды {g.name}: {len(guild_synced)}", flush=True)
-    except Exception as e:
-        print(f"Ошибка синхронизации команд: {e}", flush=True)
+    if not getattr(bot, "_commands_synced", False):
+        try:
+            synced = await bot.tree.sync()
+            print(f"Синхронизировано команд: {len(synced)}", flush=True)
+            for g in bot.guilds:
+                guild_synced = await bot.tree.sync(guild=g)
+                print(f"Синхронизировано команд для гильды {g.name}: {len(guild_synced)}", flush=True)
+        except Exception as e:
+            print(f"Ошибка синхронизации команд: {e}", flush=True)
+        bot._commands_synced = True
     if not getattr(bot, "_notify_started", False):
         bot._notify_started = True
         mark_ready()
@@ -106,6 +115,13 @@ async def main():
         await bot.add_cog(Engagement(bot))
         await bot.add_cog(TwitchChatGames(bot))
         await bot.add_cog(YouTubeGrowth(bot))
+        await bot.add_cog(ServerStats(bot))
+        await bot.add_cog(DiscordAutomod(bot))
+        await bot.add_cog(Socials(bot))
+        await bot.add_cog(Poll(bot))
+        await bot.add_cog(VoiceXP(bot))
+        await bot.add_cog(Birthdays(bot))
+        await bot.add_cog(RoleMenu(bot))
         await bot.start(TOKEN)
 
 

@@ -34,6 +34,51 @@ class Welcome(commands.Cog):
                 logging.warning("Welcome: не удалось отправить ЛС %s", member)
             except discord.Forbidden:
                 logging.warning("Welcome: нельзя отправить ЛС %s", member)
+        await self._post_public(member, left=False)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        if member.bot:
+            return
+        if not self.config.get("enabled", True):
+            return
+        await self._post_public(member, left=True)
+
+    async def _post_public(self, member: discord.Member, left: bool):
+        enabled_key = "leave_channel_enabled" if left else "welcome_channel_enabled"
+        if not self.config.get(enabled_key, True):
+            return
+        cid = self.config.get("leave_channel_id" if left else "welcome_channel_id", 0)
+        if not cid:
+            return
+        channel = self.bot.get_channel(cid)
+        if channel is None:
+            return
+        try:
+            if left:
+                embed = discord.Embed(
+                    description=f"**{member.display_name}** покинул сервер. До встречи! 👋",
+                    color=discord.Color.dark_grey(),
+                )
+                if member.display_avatar:
+                    embed.set_author(name="Участник вышел", icon_url=member.display_avatar.url)
+                embed.set_footer(text=f"ID: {member.id}")
+                logging.info("Welcome: участник вышел %s (%s)", member, member.id)
+            else:
+                embed = discord.Embed(
+                    description=f"**{member.display_name}** зашёл на сервер! Поздороваемся вместе? 👋",
+                    color=discord.Color.green(),
+                )
+                if member.display_avatar:
+                    embed.set_author(name="Новый участник", icon_url=member.display_avatar.url)
+                embed.add_field(name="Участников на сервере", value=str(member.guild.member_count), inline=True)
+                embed.set_footer(text=f"ID: {member.id}")
+                logging.info("Welcome: вступил %s (%s)", member, member.id)
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            logging.warning("Welcome: нет прав писать в канал %s", getattr(channel, "name", cid))
+        except discord.HTTPException:
+            logging.warning("Welcome: ошибка отправки в канал %s", getattr(channel, "name", cid))
 
     def _build_embed(self, member: discord.Member) -> discord.Embed:
         guild = member.guild

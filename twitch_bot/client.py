@@ -26,9 +26,10 @@ def get_anon_client_id(config=None):
 
 
 class TwitchChatClient(twitchio.Client):
-    def __init__(self, config, loop, bridge):
+    def __init__(self, config, loop, bridge, discord_bot=None):
         self.cfg = config
         self.bridge = bridge
+        self.discord_bot = discord_bot
         channels = config.get("channels", [config["channel"]])
         super().__init__(
             token=config["oauth"],

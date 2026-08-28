@@ -1,15 +1,16 @@
 import asyncio
 import json
+import re
 import time
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import aiohttp
 import discord
 from discord.ext import commands, tasks
 
 from config import CONFIG
+from twitch_bot.youtube_token import get_token_manager
 
 log = logging.getLogger("youtube_growth")
 
@@ -45,62 +46,11 @@ class YouTubeGrowth(commands.Cog):
         self._known_video_ids: set = set(self._state.get("known_videos", []))
         self._known_short_ids: set = set(self._state.get("known_shorts", []))
         self._last_analytics_post = self._state.get("last_analytics_post", 0)
-        self._session: aiohttp.ClientSession | None = None
-        self._access_token: str | None = None
-        self._token_expires: float = 0
-
-    async def _get_session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
-        return self._session
-
-    async def _get_access_token(self) -> str | None:
-        if self._access_token and time.time() < self._token_expires:
-            return self._access_token
-        client_id = self.config.get("client_id", "")
-        client_secret = self.config.get("client_secret", "")
-        refresh_token = self.config.get("refresh_token", "")
-        if not all([client_id, client_secret, refresh_token]):
-            return None
-        try:
-            session = await self._get_session()
-            async with session.post("https://oauth2.googleapis.com/token", data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-            }) as resp:
-                data = await resp.json()
-                if "access_token" in data:
-                    self._access_token = data["access_token"]
-                    self._token_expires = time.time() + data.get("expires_in", 3600) - 60
-                    return self._access_token
-        except Exception:
-            log.exception("YouTubeGrowth: token refresh failed")
-        return None
+        self._started_loops = False
 
     async def _api(self, method: str, endpoint: str, **kwargs) -> dict | None:
-        token = await self._get_access_token()
-        if not token:
-            return None
-        session = await self._get_session()
-        url = f"https://www.googleapis.com/youtube/v3{endpoint}"
-        headers = {"Authorization": f"Bearer {token}"}
-        try:
-            if method == "GET":
-                async with session.get(url, headers=headers, **kwargs) as resp:
-                    return await resp.json()
-            elif method == "POST":
-                async with session.post(url, headers=headers, **kwargs) as resp:
-                    return await resp.json()
-            elif method == "DELETE":
-                async with session.delete(url, headers=headers, **kwargs) as resp:
-                    if resp.status == 204:
-                        return {"status": "ok"}
-                    return await resp.json()
-        except Exception:
-            log.exception("YouTubeGrowth: API error %s %s", method, endpoint)
-            return None
+        tm = get_token_manager()
+        return await tm.api(method, endpoint, **kwargs)
 
     async def _get_channel_id(self) -> str | None:
         handle = self.config.get("channel", "")
@@ -121,6 +71,12 @@ class YouTubeGrowth(commands.Cog):
         if ch_id:
             return self.bot.get_channel(ch_id)
         return None
+
+    def _analytics_channel(self) -> discord.TextChannel | None:
+        ch_id = self.config.get("analytics_channel_id", 0)
+        if ch_id:
+            return self.bot.get_channel(ch_id)
+        return self._notify_channel()
 
     def _save(self):
         self._state["known_videos"] = list(self._known_video_ids)[-200:]
@@ -172,10 +128,8 @@ class YouTubeGrowth(commands.Cog):
             if thumb:
                 embed.set_thumbnail(url=thumb)
             embed.set_footer(text="YouTube Shorts")
-            ping_role = self.config.get("ping_role_id", 0)
-            content = f"<@&{ping_role}>" if ping_role else None
             try:
-                await ch.send(content=content, embed=embed)
+                await ch.send(embed=embed)
             except Exception:
                 log.exception("YouTubeGrowth: failed to post Short notification")
 
@@ -221,10 +175,8 @@ class YouTubeGrowth(commands.Cog):
                 except Exception:
                     pass
             embed.set_footer(text="Добавь в календарь!")
-            ping_role = self.config.get("ping_role_id", 0)
-            content = f"<@&{ping_role}>" if ping_role else None
             try:
-                await ch.send(content=content, embed=embed)
+                await ch.send(embed=embed)
             except Exception:
                 log.exception("YouTubeGrowth: failed to post premiere notification")
 
@@ -299,7 +251,7 @@ class YouTubeGrowth(commands.Cog):
         item = data["items"][0]
         stats = item.get("statistics", {})
         snippet = item.get("snippet", {})
-        ch = self._notify_channel()
+        ch = self._analytics_channel()
         if not ch:
             return
         subs = int(stats.get("subscriberCount", 0))
@@ -388,7 +340,7 @@ class YouTubeGrowth(commands.Cog):
         })
         if not data:
             return
-        replied = self._state.get("replied_comments", set())
+        replied = set(self._state.get("replied_comments", []))
         for item in data.get("items", []):
             vid = item.get("id", {}).get("videoId")
             if not vid:
@@ -426,11 +378,15 @@ class YouTubeGrowth(commands.Cog):
 
     def _parse_duration_seconds(self, duration: str) -> int:
         total = 0
-        for part in duration.replace("PT", "").split("M"):
-            for sub in part.split("H"):
-                for s in sub.replace("S", "").split("S"):
-                    if s.isdigit():
-                        total += int(s)
+        m_h = re.search(r"(\d+)H", duration)
+        m_m = re.search(r"(\d+)M", duration)
+        m_s = re.search(r"(\d+)S", duration)
+        if m_h:
+            total += int(m_h.group(1)) * 3600
+        if m_m:
+            total += int(m_m.group(1)) * 60
+        if m_s:
+            total += int(m_s.group(1))
         return total
 
     # ── Main loop ──
@@ -458,13 +414,15 @@ class YouTubeGrowth(commands.Cog):
     async def on_ready(self):
         if not self.config.get("enabled", False):
             return
+        if self._started_loops:
+            return
+        self._started_loops = True
         self.bot.loop.create_task(self._growth_loop())
         self.bot.loop.create_task(self._stream_cta_loop())
         log.info("YouTubeGrowth: модуль запущен")
 
     async def cog_unload(self):
-        if self._session and not self._session.closed:
-            await self._session.close()
+        pass
 
 
 async def setup(bot: commands.Bot):

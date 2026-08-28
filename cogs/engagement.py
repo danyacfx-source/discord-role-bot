@@ -44,6 +44,7 @@ class Engagement(commands.Cog):
         self.streaks: dict = _load_json(STREAK_FILE)
         self._polls: dict = {}
         self._sub_cache: set[int] = set()
+        self._started_role_sync = False
 
     def _save_loyalty(self):
         _save_json(LOYALTY_FILE, self.loyalty)
@@ -174,7 +175,8 @@ class Engagement(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if not self.role_sync_loop.is_running():
+        if not self._started_role_sync:
+            self._started_role_sync = True
             self.role_sync_loop.start()
 
 

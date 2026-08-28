@@ -125,7 +125,7 @@ class CommandHandler:
         if name in engagement_cmds:
             tc_games = self.bot.discord_bot.get_cog("TwitchChatGames") if hasattr(self.bot, "discord_bot") else None
             if tc_games:
-                await tc_games.handle_command(author.name.lower(), content, message.channel)
+                await tc_games.handle_command(message.author.name.lower(), content, message.channel)
             return
         cmd = self.commands.get(name)
         if cmd is None:
@@ -446,8 +446,11 @@ class CommandHandler:
         )
         try:
             owner_id = CONFIG.get("owner_id")
-            if owner_id:
-                owner = await self.bot.fetch_user(owner_id)
+            discord_bot = getattr(self.bot, "discord_bot", None)
+            if owner_id and discord_bot is not None:
+                owner = discord_bot.get_user(owner_id)
+                if owner is None:
+                    owner = await discord_bot.fetch_user(owner_id)
                 await owner.send(f"🎵 {requester} заказал трек: {full_url}")
         except Exception:
             pass

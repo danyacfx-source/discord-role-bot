@@ -60,6 +60,8 @@ def end_raid(survived: bool):
         s["best_streak"] = max(s.get("best_streak", 0), s["streak"])
     else:
         s["streak"] = 0
+    s["current_map"] = None
+    s["started_at"] = None
     _save()
 
 

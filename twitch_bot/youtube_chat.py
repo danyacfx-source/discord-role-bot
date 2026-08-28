@@ -5,16 +5,31 @@ import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from collections import defaultdict, deque
 
 import aiohttp
+
+from twitch_bot.youtube_token import get_token_manager
+
+_yt_chat_buffer: deque = deque(maxlen=50)
+_yt_chat_seen_ids: set = set()
+
+
+def get_yt_chat_messages() -> list:
+    return list(_yt_chat_buffer)
+
+
+def clear_yt_chat_buffer():
+    _yt_chat_buffer.clear()
+    _yt_chat_seen_ids.clear()
 
 log = logging.getLogger("youtube")
 
 MSK = timezone(timedelta(hours=3))
 
-TOKEN_URL = "https://oauth2.googleapis.com/token"
 API_BASE = "https://www.googleapis.com/youtube/v3"
+_YT_CHAT_STATE = Path(__file__).resolve().parent.parent / "data" / "yt_chat_state.json"
 
 
 class YouTubeModeration:
@@ -97,8 +112,6 @@ class YouTubeChatClient:
         self._peak_viewers = 0
         self._start_notify_message_id = None
         self._live_message_id = None
-        self._access_token = None
-        self._token_expires = 0
         self.moderation_enabled = config.get("moderation", {}).get("enabled", True)
         self.ban_on_violation = config.get("moderation", {}).get("ban_on_violation", False)
         self.ban_duration = config.get("moderation", {}).get("ban_duration_seconds", 300)
@@ -106,6 +119,45 @@ class YouTubeChatClient:
         self.screenshot_channel_id = config.get("screenshot_channel_id", 0)
         self._last_screenshot = 0
         self._last_screenshot_hash = None
+        self._promo_message = config.get("promo_message", "")
+        self._promo_interval = config.get("promo_interval_seconds", 1800)
+        self._last_promo = 0
+        cmds_cfg = config.get("commands") or {}
+        self._cmd_prefix = cmds_cfg.get("prefix", "!")
+        self._custom_commands = {}
+        for cmd in cmds_cfg.get("list", []):
+            name = str(cmd.get("name", "")).lower().lstrip(self._cmd_prefix)
+            if name:
+                self._custom_commands[name] = cmd
+        self._cmd_cooldowns = {}
+        self._recently_sent: set = set()
+        self._load_chat_state()
+
+    def _load_chat_state(self):
+        try:
+            if _YT_CHAT_STATE.exists():
+                data = json.loads(_YT_CHAT_STATE.read_text(encoding="utf-8"))
+                if data.get("video_id"):
+                    self._video_id = data["video_id"]
+                    self._page_token = data.get("page_token")
+                    self._live_chat_id = data.get("live_chat_id")
+                    self._seen = set(data.get("seen_ids", []))
+                    _yt_chat_seen_ids.update(self._seen)
+                    log.info("YouTube chat state restored: video=%s token=%s seen=%d", self._video_id, bool(self._page_token), len(self._seen))
+        except Exception:
+            pass
+
+    def _save_chat_state(self):
+        try:
+            _YT_CHAT_STATE.parent.mkdir(parents=True, exist_ok=True)
+            _YT_CHAT_STATE.write_text(json.dumps({
+                "video_id": self._video_id,
+                "page_token": self._page_token,
+                "live_chat_id": self._live_chat_id,
+                "seen_ids": list(self._seen)[-500:],
+            }, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
 
     async def start(self):
         self._running = True
@@ -143,6 +195,7 @@ class YouTubeChatClient:
                     await self._check_live()
                     await self._update_viewers()
                     await self._take_screenshot()
+                    await self._maybe_send_promo()
 
             except asyncio.CancelledError:
                 break
@@ -180,14 +233,14 @@ class YouTubeChatClient:
                 status = b.get("status", {})
                 lifecycle = status.get("lifeCycleStatus", "")
                 broadcast_status = status.get("broadcastStatus", "")
+                log.debug("YouTube broadcast %s: lifecycle=%s broadcastStatus=%s", bid, lifecycle, broadcast_status)
 
                 is_live = (
-                    lifecycle == "live"
-                    or broadcast_status == "started"
-                    or lifecycle in ("ready", "revived") and broadcast_status != "upcoming"
+                    broadcast_status in ("live", "testing")
+                    and lifecycle in ("live", "testing")
                 )
 
-                if is_live and lifecycle not in ("complete", "revoked", "expired", "deleted"):
+                if is_live:
                     active_vid = bid
                     active_title = snippet.get("title", "")
                     break
@@ -203,6 +256,7 @@ class YouTubeChatClient:
                     self._peak_viewers = 0
                     self._live_message_id = None
                     log.info("YouTube: стрим LIVE! video=%s", active_vid)
+                    self._save_chat_state()
                 if not self._notified_live:
                     from twitch_bot.stream_state import set_stream_live
                     set_stream_live(True)
@@ -223,6 +277,7 @@ class YouTubeChatClient:
                     self._current_viewers = 0
                     self._live_message_id = None
                     log.info("YouTube: стрим окончен")
+                    self._save_chat_state()
         except Exception:
             log.exception("YouTube: ошибка проверки стрима")
 
@@ -321,7 +376,7 @@ class YouTubeChatClient:
         channel = self.discord_bot.get_channel(channel_id)
         if not channel:
             try:
-                channel = self.discord_bot.fetch_channel(channel_id)
+                channel = await self.discord_bot.fetch_channel(channel_id)
             except Exception:
                 return
 
@@ -374,6 +429,7 @@ class YouTubeChatClient:
                     if self._notified_prep != key:
                         self._notified_prep = key
                         await self._notify_prep(stream_time)
+                    await self._refresh_upcoming(stream_time, vid, title, minutes_left)
                 elif minutes_left <= lead_minutes:
                     key = f"{vid}_{stream_time.isoformat()}"
                     if self._notified_upcoming == key:
@@ -544,66 +600,14 @@ class YouTubeChatClient:
         except Exception:
             log.exception("YouTube: ошибка отправки уведомления")
 
-    async def _ensure_access_token(self):
-        if self._access_token and time.time() < self._token_expires - 60:
-            return self._access_token
-
-        client_id = self.config.get("client_id", "")
-        client_secret = self.config.get("client_secret", "")
-        refresh_token = self.config.get("refresh_token", "")
-
-        if not client_id or not client_secret or not refresh_token:
-            return None
-
-        try:
-            async with self._session.post(TOKEN_URL, data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-            }) as resp:
-                data = await resp.json()
-                if "access_token" in data:
-                    self._access_token = data["access_token"]
-                    self._token_expires = time.time() + data.get("expires_in", 3600)
-                    return self._access_token
-                else:
-                    log.error("YouTube OAuth: %s", data.get("error_description", "?"))
-                    return None
-        except Exception:
-            log.exception("YouTube OAuth: ошибка обновления токена")
-            return None
-
     async def _api_request(self, method, endpoint, params=None, json_body=None):
-        token = await self._ensure_access_token()
-        if not token:
-            return None
-
-        url = f"{API_BASE}{endpoint}"
-        headers = {"Authorization": f"Bearer {token}"}
+        tm = get_token_manager()
+        kwargs = {}
+        if params:
+            kwargs["params"] = params
         if json_body:
-            headers["Content-Type"] = "application/json; charset=UTF-8"
-
-        try:
-            if method == "GET":
-                async with self._session.get(url, params=params, headers=headers) as resp:
-                    return await resp.json()
-            elif method == "POST":
-                async with self._session.post(url, params=params, headers=headers, json=json_body) as resp:
-                    return await resp.json()
-            elif method == "DELETE":
-                async with self._session.delete(url, params=params, headers=headers) as resp:
-                    if resp.status == 204:
-                        return {"status": "ok"}
-                    if resp.status >= 400:
-                        try:
-                            return await resp.json()
-                        except Exception:
-                            return {"error": {"code": resp.status, "message": "HTTP error"}}
-                    return await resp.json()
-        except Exception:
-            log.exception("YouTube API: ошибка %s %s", method, endpoint)
-            return None
+            kwargs["json"] = json_body
+        return await tm.api(method, endpoint, **kwargs)
 
     async def _resolve_live_chat_id(self):
         if not self._video_id:
@@ -621,6 +625,7 @@ class YouTubeChatClient:
         self._live_chat_id = details.get("activeLiveChatId")
         if self._live_chat_id:
             log.info("YouTube: liveChatId=%s", self._live_chat_id)
+            self._save_chat_state()
         else:
             log.warning("YouTube: liveChatId не найден")
 
@@ -637,11 +642,78 @@ class YouTubeChatClient:
             log.warning("YouTube: ошибка удаления %s: %s", message_id, data)
             return False
 
+    async def send_chat_message(self, text):
+        if not self._live_chat_id or not text:
+            return False
+        body = {
+            "snippet": {
+                "liveChatId": self._live_chat_id,
+                "type": "textMessageEvent",
+                "textMessageDetails": {
+                    "messageText": text,
+                },
+            },
+        }
+        data = await self._api_request("POST", "/liveChat/messages", params={"part": "snippet"}, json_body=body)
+        if data and "error" not in data:
+            log.info("YouTube: сообщение отправлено в чат")
+            return True
+        else:
+            log.warning("YouTube: ошибка отправки сообщения: %s", data)
+            return False
+
+    async def _maybe_send_promo(self):
+        if not self._promo_message or self._promo_interval <= 0:
+            return
+        now = time.time()
+        if now - self._last_promo < self._promo_interval:
+            return
+        self._last_promo = now
+        await self.send_chat_message(self._promo_message)
+
+    async def _handle_command(self, text, author, author_id, is_owner, is_mod):
+        parts = text[len(self._cmd_prefix):].split(maxsplit=1)
+        if not parts:
+            return
+        name = parts[0].lower()
+        args = parts[1].strip() if len(parts) > 1 else ""
+
+        if name == "commands" or name == "команды":
+            public = [n for n, cmd in self._custom_commands.items() if not cmd.get("mod_only")]
+            listing = ", ".join(self._cmd_prefix + n for n in sorted(public))
+            await self.send_chat_message(f"Команды: {listing}" if listing else "Команд нет")
+            return
+
+        cmd = self._custom_commands.get(name)
+        if not cmd:
+            return
+
+        if cmd.get("mod_only") and not (is_owner or is_mod):
+            return
+
+        cooldown = cmd.get("cooldown", 10)
+        now = time.time()
+        last = self._cmd_cooldowns.get(name, 0)
+        if now - last < cooldown:
+            return
+        self._cmd_cooldowns[name] = now
+
+        response = cmd.get("text", "")
+        if response:
+            response = response.replace("{user}", author).replace("{args}", args)
+            await self.send_chat_message(response)
+            self._recently_sent.add(response)
+            if len(self._recently_sent) > 50:
+                self._recently_sent.clear()
+
     async def ban_user(self, channel_id, duration_seconds=None, reason="Нарушение правил"):
         if not self._live_chat_id or not channel_id:
             return False
 
         ban_type = "temporary" if duration_seconds else "permanent"
+        ban_details = {}
+        if duration_seconds:
+            ban_details["banDurationSeconds"] = str(duration_seconds)
         body = {
             "snippet": {
                 "liveChatId": self._live_chat_id,
@@ -649,10 +721,9 @@ class YouTubeChatClient:
                 "bannedUserDetails": {
                     "channelId": channel_id,
                 },
+                "banDetails": ban_details,
             },
         }
-        if duration_seconds:
-            body["snippet"]["banDurationSeconds"] = str(duration_seconds)
 
         data = await self._api_request("POST", "/liveChat/bans", params={"part": "snippet"}, json_body=body)
         if data and "error" not in data:
@@ -683,6 +754,7 @@ class YouTubeChatClient:
             return
 
         self._page_token = data.get("nextPageToken")
+        self._save_chat_state()
 
         items = data.get("items", [])
         for item in items:
@@ -690,8 +762,8 @@ class YouTubeChatClient:
             if msg_id in self._seen:
                 continue
             self._seen.add(msg_id)
-            if len(self._seen) > 500:
-                self._seen.clear()
+            if len(self._seen) > 5000:
+                self._seen = {msg_id}
 
             snippet = item.get("snippet", {})
             author_details = item.get("authorDetails", {})
@@ -703,6 +775,10 @@ class YouTubeChatClient:
             is_mod = author_details.get("isChatModerator", False)
 
             if not display_text:
+                continue
+
+            if display_text in self._recently_sent:
+                self._recently_sent.discard(display_text)
                 continue
 
             badge = ""
@@ -725,6 +801,25 @@ class YouTubeChatClient:
                         await self.ban_user(channel_id, self.ban_duration)
                     continue
 
+            if display_text.startswith(self._cmd_prefix):
+                await self._handle_command(display_text, author_name, channel_id, is_owner, is_mod)
+
+            if msg_id not in _yt_chat_seen_ids:
+                _yt_chat_seen_ids.add(msg_id)
+                if len(_yt_chat_seen_ids) > 5000:
+                    _yt_chat_seen_ids.clear()
+                _yt_chat_buffer.append({
+                    "author": author_name,
+                    "text": display_text,
+                    "badge": badge,
+                    "is_owner": is_owner,
+                    "is_mod": is_mod,
+                    "avatar": author_details.get("profileImageUrl", ""),
+                    "time": time.time(),
+                })
+
             log.info("YouTube: %s%s: %s", badge, author_name, display_text[:80])
             if self.bridge:
                 await self.bridge.forward_to_discord(f"YT {badge}{author_name}", display_text)
+
+        self._save_chat_state()

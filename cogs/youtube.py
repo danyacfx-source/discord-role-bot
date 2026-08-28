@@ -26,6 +26,7 @@ class YouTube(commands.Cog):
         self.api = YouTubeAPI(self.config)
         self._moderation_task = None
         self._video_check_task = None
+        self._status_task = None
         self._known_video_ids: set = set()
 
     async def cog_load(self):
@@ -40,6 +41,7 @@ class YouTube(commands.Cog):
         self._task = self.bot.loop.create_task(self._run_youtube())
         self._moderation_task = self.bot.loop.create_task(self._comment_moderation_loop())
         self._video_check_task = self.bot.loop.create_task(self._new_video_check_loop())
+        self._status_task = self.bot.loop.create_task(self._status_loop())
         log.info("YouTube-модуль запущен: @%s", self.config.get("channel"))
 
     async def cog_unload(self):
@@ -51,6 +53,8 @@ class YouTube(commands.Cog):
             self._moderation_task.cancel()
         if self._video_check_task:
             self._video_check_task.cancel()
+        if self._status_task:
+            self._status_task.cancel()
         await self.api.close()
 
     async def _run_youtube(self):
@@ -90,12 +94,45 @@ class YouTube(commands.Cog):
 
             await asyncio.sleep(interval)
 
+    async def _status_loop(self):
+        await self.bot.wait_until_ready()
+        interval = max(30, self.config.get("status_poll_seconds", 120))
+        while not self.bot.is_closed():
+            try:
+                broadcasts = await self.api.get_live_broadcasts("live")
+                active = None
+                for b in broadcasts:
+                    status = b.get("status", {})
+                    lc = status.get("lifeCycleStatus", "")
+                    bs = status.get("broadcastStatus", "")
+                    if lc in ("live", "testing") and bs in ("live", "testing"):
+                        active = b
+                        break
+                if active:
+                    snippet = active.get("snippet", {})
+                    title = snippet.get("title", "YouTube")
+                    activity = discord.Activity(
+                        type=discord.ActivityType.watching,
+                        name=f"YT: {title}",
+                    )
+                    await self.bot.change_presence(activity=activity)
+                else:
+                    activity = discord.Activity(
+                        type=discord.ActivityType.watching,
+                        name="Ждём эфир",
+                    )
+                    await self.bot.change_presence(activity=activity)
+            except Exception:
+                log.debug("YouTube: ошибка обновления статуса")
+            await asyncio.sleep(interval)
+
     async def _new_video_check_loop(self):
         await self.bot.wait_until_ready()
         await asyncio.sleep(60)
         handle = self.config.get("channel", "Dendosich")
         channel_id = None
         notify_id = self.config.get("notify_channel_id", 0)
+        seeded = False
         while not self.bot.is_closed():
             try:
                 if not channel_id:
@@ -103,7 +140,15 @@ class YouTube(commands.Cog):
                     if item:
                         channel_id = item["id"]
                 if channel_id:
-                    videos = await self.api.get_recent_videos(channel_id, max_results=5)
+                    videos = await self.api.get_recent_videos(channel_id, max_results=10)
+                    if not seeded and videos:
+                        for v in videos:
+                            vid = v.get("id", {}).get("videoId")
+                            if vid:
+                                self._known_video_ids.add(vid)
+                        seeded = True
+                        log.info("YouTube: проинициализировано %d известных видео", len(self._known_video_ids))
+                        continue
                     for v in videos:
                         vid = v.get("id", {}).get("videoId")
                         if not vid or vid in self._known_video_ids:
@@ -127,10 +172,8 @@ class YouTube(commands.Cog):
                                 )
                                 if thumb:
                                     embed.set_thumbnail(url=thumb)
-                                ping_role = self.config.get("ping_role_id", 0)
-                                content = f"<@&{ping_role}>" if ping_role else None
                                 try:
-                                    await ch.send(content=content, embed=embed)
+                                    await ch.send(embed=embed)
                                 except Exception:
                                     log.exception("YouTube: ошибка отправки уведомления о видео")
             except asyncio.CancelledError:

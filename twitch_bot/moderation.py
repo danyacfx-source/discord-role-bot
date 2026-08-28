@@ -1,6 +1,9 @@
+import logging
 import re
 import time
 from collections import defaultdict, deque
+
+log = logging.getLogger("moderation")
 
 class Moderation:
     def __init__(self, config):
@@ -11,7 +14,7 @@ class Moderation:
         self._history = defaultdict(lambda: deque(maxlen=self.config.get("history_size", 10)))
         self._timestamps = defaultdict(list)
         self._timeouts = defaultdict(int)
-        self._link_re = re.compile(r"(?:https?://|www\.)([^/\s]+)", re.IGNORECASE)
+        self._link_re = re.compile(r"(?:https?://|www\.)?([a-z0-9-]+\.[a-z]{2,})", re.IGNORECASE)
         self.ban_threshold = self.config.get("ban_after_timeouts", 3)
         self.channel = None
 
@@ -125,7 +128,7 @@ class Moderation:
             if self.config.get("announce_timeouts", True):
                 await message.channel.send(f"@{user} — {reason}, тайм-аут {duration} сек")
         except Exception:
-            pass
+            log.warning("Moderation: не удалось выдать тайм-аут %s: %s", user, reason, exc_info=True)
 
     async def timeout_user(self, user, duration, reason=""):
         try:

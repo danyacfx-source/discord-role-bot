@@ -16,6 +16,7 @@ class RamReport(commands.Cog):
         self.channel_id = cfg.get("channel_id", 0)
         self.interval_minutes = cfg.get("interval_minutes", 30)
         self.ram_report_loop.change_interval(minutes=self.interval_minutes)
+        self._started = False
 
     def _rss_mb(self) -> float:
         import psutil
@@ -56,7 +57,8 @@ class RamReport(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if self.enabled and not self.ram_report_loop.is_running():
+        if self.enabled and not self._started:
+            self._started = True
             self.ram_report_loop.start()
             log.info("Отчёт по ОЗУ: каждые %s мин в канал %s", self.interval_minutes, self.channel_id)
 

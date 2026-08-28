@@ -9,6 +9,7 @@ class ReactionRoles(commands.Cog):
         self.bot = bot
         self.config = CONFIG.get("reaction_roles") or {}
         self._panel_message_id = None
+        self._started_panel = False
 
     async def _ensure_panel(self):
         if not self.config.get("enabled", True):
@@ -53,6 +54,7 @@ class ReactionRoles(commands.Cog):
                 self._panel_message_id = msg.id
                 return
         msg = await channel.send(embed=embed)
+        await self._sync_reactions(msg, roles)
         self._panel_message_id = msg.id
 
     @staticmethod
@@ -67,7 +69,9 @@ class ReactionRoles(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.bot.loop.create_task(self._ensure_panel())
+        if not self._started_panel:
+            self._started_panel = True
+            self.bot.loop.create_task(self._ensure_panel())
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):

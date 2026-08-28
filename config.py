@@ -23,7 +23,7 @@ CONFIG["token"] = os.environ.get("DISCORD_TOKEN") or CONFIG.get("token", "")
 CONFIG.setdefault("twitch", {})["oauth"] = os.environ.get("TWITCH_OAUTH") or CONFIG.get("twitch", {}).get("oauth", "")
 CONFIG.setdefault("youtube", {})["client_id"] = os.environ.get("YOUTUBE_CLIENT_ID") or CONFIG.get("youtube", {}).get("client_id", "")
 CONFIG.setdefault("youtube", {})["client_secret"] = os.environ.get("YOUTUBE_CLIENT_SECRET") or CONFIG.get("youtube", {}).get("client_secret", "")
-CONFIG["youtube"]["refresh_token"] = os.environ.get("YOUTUBE_REFRESH_TOKEN") or CONFIG.get("youtube", {}).get("refresh_token", "")
+CONFIG.setdefault("youtube", {})["refresh_token"] = os.environ.get("YOUTUBE_REFRESH_TOKEN") or CONFIG.get("youtube", {}).get("refresh_token", "")
 
 LEVELS = sorted(CONFIG["levels"], key=lambda x: x["messages"])
 EXTRA_ROLES = CONFIG.get("extra_roles", [])

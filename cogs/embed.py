@@ -396,8 +396,11 @@ class EmbedBuilder(commands.Cog):
         self.drafts: dict[int, EmbedDraft] = {}
 
     def get_draft(self, user_id: int) -> EmbedDraft:
-        if len(self.drafts) > self.MAX_DRAFTS:
-            self.drafts.clear()
+        if len(self.drafts) > self.MAX_DRAFTS and user_id not in self.drafts:
+            try:
+                del self.drafts[next(iter(self.drafts))]
+            except StopIteration:
+                pass
         return self.drafts.setdefault(user_id, EmbedDraft())
 
     def render(self, draft: EmbedDraft, guild: discord.Guild, owner_id: int = 0):
@@ -421,7 +424,7 @@ class EmbedBuilder(commands.Cog):
     async def embed(self, interaction: discord.Interaction):
         draft = self.get_draft(interaction.user.id)
         embed, view = self.render(draft, interaction.guild, owner_id=interaction.user.id)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

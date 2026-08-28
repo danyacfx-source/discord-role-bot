@@ -101,17 +101,18 @@ class StreamLiveNotifier:
             if self._offline_checks < 2:
                 log.info("StreamLive: стрим не найден, повторная проверка (%d/2)", self._offline_checks)
                 return
-            if self._notified_stream_id:
+            if self._notified_stream_id or self._message_id is not None:
                 log.info("StreamLive: стрим завершён")
                 await self._post_stream_summary()
-            from twitch_bot.stream_state import set_stream_live
-            set_stream_live(False)
-            await self._notify_offline()
-            self._notified_stream_id = None
-            self._message_id = None
-            self._peak_viewers = 0
-            self._save_state(None)
+                from twitch_bot.stream_state import set_stream_live
+                set_stream_live(False)
+                await self._notify_offline()
+                self._notified_stream_id = None
+                self._message_id = None
+                self._peak_viewers = 0
+                self._save_state(None)
             await self._check_upcoming()
+            self._offline_checks = 0
             return
         self._offline_checks = 0
         stream_id = stream.get("id")
@@ -154,7 +155,7 @@ class StreamLiveNotifier:
         uptime = stream_uptime()
         h, rem = divmod(int(uptime), 3600)
         m, s = divmod(rem, 60)
-        uptime_str = f"{h}ч {m}м" if h else f"{m}м {с}с"
+        uptime_str = f"{h}ч {m}м" if h else f"{m}м {s}с"
         peak = self._peak_viewers
         engagement = self.discord_bot.get_cog("Engagement")
         top_chatters = []
