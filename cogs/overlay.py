@@ -11,7 +11,6 @@ from twitch_bot import overlay_state
 from twitch_bot.chat_overlay import get_chat_messages
 from twitch_bot.raid_state import state as raid_state
 from twitch_bot.song_queue import SongQueue
-from twitch_bot.youtube_chat import get_yt_chat_messages
 
 log = logging.getLogger("overlay")
 
@@ -167,117 +166,6 @@ setInterval(function () {
   var sec = remain % 60;
   el.textContent = (m < 10 ? '0' + m : m) + ':' + (sec < 10 ? '0' + sec : sec);
 }, 1000);
-</script>
-</body>
-</html>
-"""
-
-
-YT_CHAT_PAGE = """<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<title>YT Chat</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: transparent;
-    font-family: 'Segoe UI', Roboto, Arial, sans-serif;
-    color: #fff;
-    width: 360px;
-    height: 100vh;
-    overflow: hidden;
-  }
-  #chat {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    height: 100%;
-    padding: 8px;
-  }
-  .msg {
-    background: rgba(20, 22, 31, 0.0);
-    border-left: 3px solid #FF0000;
-    border-radius: 8px;
-    padding: 8px 10px;
-    margin-bottom: 6px;
-    animation: fadeIn 0.3s ease;
-  }
-  .msg.owner { border-left-color: #FFD700; }
-  .msg.mod   { border-left-color: #5e84f1; }
-  .msg-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 3px;
-  }
-  .msg-avatar {
-    width: 20px; height: 20px; border-radius: 50%;
-    object-fit: cover;
-  }
-  .msg-author {
-    font-size: 12px;
-    font-weight: 700;
-    color: #a7a9be;
-  }
-  .msg-author.owner { color: #FFD700; }
-  .msg-author.mod   { color: #5e84f1; }
-  .msg-badge {
-    font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-weight: 700;
-  }
-  .msg-badge.owner { background: #FFD700; color: #000; }
-  .msg-badge.mod   { background: #5e84f1; color: #fff; }
-  .msg-text {
-    font-size: 14px;
-    line-height: 1.4;
-    word-break: break-word;
-    color: #e8e8e8;
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-</style>
-</head>
-<body>
-  <div id="chat"></div>
-<script>
-let lastId = 0;
-async function load() {
-  try {
-    const r = await fetch('/yt-chat/api?token=__OVERLAY_TOKEN__');
-    const d = await r.json();
-    const box = document.getElementById('chat');
-    const msgs = d.messages || [];
-    const newMsgs = msgs.filter(m => m.id > lastId);
-    for (const m of newMsgs) {
-      const div = document.createElement('div');
-      div.className = 'msg' + (m.is_owner ? ' owner' : m.is_mod ? ' mod' : '');
-      let badgeHtml = '';
-      if (m.is_owner) badgeHtml = '<span class="msg-badge owner">OWNER</span>';
-      else if (m.is_mod) badgeHtml = '<span class="msg-badge mod">MOD</span>';
-      let avatarHtml = m.avatar ? '<img class="msg-avatar" src="' + esc(m.avatar) + '" onerror="this.style.display=none">' : '';
-      div.innerHTML =
-        '<div class="msg-header">' + avatarHtml +
-        '<span class="msg-author' + (m.is_owner ? ' owner' : m.is_mod ? ' mod' : '') + '">' + esc(m.author) + '</span>' +
-        badgeHtml + '</div>' +
-        '<div class="msg-text">' + esc(m.text) + '</div>';
-      box.appendChild(div);
-    }
-    if (newMsgs.length) lastId = Math.max(...newMsgs.map(m => m.id));
-    while (box.children.length > 30) box.removeChild(box.firstChild);
-  } catch (e) {}
-}
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s == null ? '' : String(s);
-  return d.innerHTML;
-}
-load();
-setInterval(load, 2000);
 </script>
 </body>
 </html>
@@ -449,31 +337,6 @@ class Overlay(commands.Cog):
         html = html.replace("__OVERLAY_TOKEN__", self._auth_token)
         return web.Response(text=html, content_type="text/html")
 
-    async def _yt_chat_page(self, request):
-        html = YT_CHAT_PAGE.replace("__OVERLAY_TOKEN__", self._auth_token)
-        return web.Response(text=html, content_type="text/html")
-
-    async def _yt_chat_api(self, request):
-        token = request.headers.get("X-Overlay-Token") or request.query.get("token")
-        if not secrets.compare_digest(token or "", self._auth_token):
-            return web.json_response({"error": "unauthorized"}, status=401)
-        messages = get_yt_chat_messages()
-        payload = {
-            "messages": [
-                {
-                    "id": i,
-                    "author": m["author"],
-                    "text": m["text"],
-                    "badge": m["badge"],
-                    "is_owner": m["is_owner"],
-                    "is_mod": m["is_mod"],
-                    "avatar": m["avatar"],
-                }
-                for i, m in enumerate(messages)
-            ],
-        }
-        return web.json_response(payload)
-
     async def _chat_page(self, request):
         html = POPUP_CHAT_PAGE.replace("__OVERLAY_TOKEN__", self._auth_token)
         return web.Response(text=html, content_type="text/html")
@@ -504,8 +367,8 @@ class Overlay(commands.Cog):
         app = web.Application()
         app.router.add_get("/overlay", self._page)
         app.router.add_get("/overlay/api", self._api)
-        app.router.add_get("/yt-chat", self._yt_chat_page)
-        app.router.add_get("/yt-chat/api", self._yt_chat_api)
+        app.router.add_get("/yt-chat", self._chat_page)
+        app.router.add_get("/yt-chat/api", self._chat_api)
         app.router.add_get("/chat", self._chat_page)
         app.router.add_get("/chat/api", self._chat_api)
         self._runner = web.AppRunner(app)
