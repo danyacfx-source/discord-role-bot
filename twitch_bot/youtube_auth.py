@@ -177,8 +177,10 @@ def main():
         if os.path.exists(env_path):
             with open(env_path, "r", encoding="utf-8") as f:
                 lines = [l for l in f.readlines() if not l.startswith("YOUTUBE_REFRESH_TOKEN")]
-        with open(env_path, "a", encoding="utf-8") as f:
+        with open(env_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
+            if lines and not lines[-1].endswith("\n"):
+                f.write("\n")
             f.write(f"YOUTUBE_REFRESH_TOKEN={tokens['refresh_token']}\n")
         print(f"\nRefresh token сохранён в .env")
         print("Теперь бот сможет модерировать YouTube чат!")
