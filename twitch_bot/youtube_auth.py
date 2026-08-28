@@ -36,7 +36,19 @@ def load_config():
     import os
     config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
     with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f), config_path
+        config = json.load(f)
+    env_path = os.path.join(os.path.dirname(config_path), ".env")
+    if os.path.exists(env_path):
+        for line in open(env_path, encoding="utf-8"):
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            if key.strip() == "YOUTUBE_CLIENT_ID":
+                config.setdefault("youtube", {})["client_id"] = value.strip()
+            elif key.strip() == "YOUTUBE_CLIENT_SECRET":
+                config.setdefault("youtube", {})["client_secret"] = value.strip()
+    return config, config_path
 
 
 def save_config(config, config_path):
