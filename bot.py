@@ -6,7 +6,7 @@ import sys
 import discord
 from discord.ext import commands
 
-from config import TOKEN, CONFIG
+from config import TOKEN, CONFIG, PROXY_URL
 from cogs.embed import EmbedBuilder, EmbedBuilderView
 from cogs.leveling import Leveling
 from cogs.setup import Setup
@@ -50,7 +50,15 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+_proxy_url = PROXY_URL or ""
+if _proxy_url.lower() in ("", "none", "system", "off", "0"):
+    _proxy_url = ""
+
+_bot_options = {}
+if _proxy_url:
+    _bot_options["proxy"] = _proxy_url
+
+bot = commands.Bot(command_prefix="!", intents=intents, **_bot_options)
 
 bot.add_view(TempChannelView())
 bot.add_view(EmbedBuilderView())
