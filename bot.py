@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 
 import discord
 from discord.ext import commands
@@ -131,5 +132,26 @@ async def main():
         await bot.start(TOKEN)
 
 
+def _acquire_single_instance_mutex() -> bool:
+    try:
+        import ctypes
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        handle = kernel.CreateMutexW(None, False, "DendichRoleBotMutex")
+        if ctypes.get_last_error() == 183:
+            kernel.CloseHandle(handle)
+            return False
+        if not handle:
+            return False
+        _acquire_single_instance_mutex.handle = handle
+        return True
+    except Exception:
+        logging.warning("Не удалось создать mutex одиночного инстанса")
+        return True
+
+
 if __name__ == "__main__":
+    if not _acquire_single_instance_mutex():
+        logging.warning("Уже запущен другой инстанс бота — выход.")
+        sys.exit(0)
     asyncio.run(main())
