@@ -108,19 +108,38 @@ class GuildLogs(commands.Cog):
             info["branch"] = "?"
         return info
 
+    async def _previous_deploy_commit(self, ch) -> str:
+        try:
+            async for message in ch.history(limit=5):
+                if message.author is None or message.author.id != self.bot.user.id:
+                    continue
+                for embed in message.embeds:
+                    for field in getattr(embed, "fields", []):
+                        if field.name == "Версия (commit)":
+                            return field.value.strip("`")
+        except Exception:
+            log.exception("Не удалось прочитать предыдущий деплой")
+        return ""
+
     async def _post_deploy_log(self):
         ch = self._cnl("deploy_log_channel_id")
         if ch is None:
             return
         try:
             info = self._deploy_info()
+            commit = info["commit"]
+            prev = await self._previous_deploy_commit(ch)
+            if prev and prev == commit:
+                title = f"🔄 Перезапуск: `{commit}`"
+            else:
+                title = f"🚀 Деплой: `{commit}`"
             embed = discord.Embed(
-                title="Deploys",
+                title=title,
                 color=discord.Color.brand_green(),
                 timestamp=datetime.datetime.now(datetime.timezone.utc),
             )
             embed.add_field(name="Бот", value=f"<@{self.bot.user.id}>", inline=True)
-            embed.add_field(name="Версия (commit)", value=f"`{info['commit']}`", inline=True)
+            embed.add_field(name="Версия (commit)", value=f"`{commit}`", inline=True)
             embed.add_field(name="Ветка", value=f"`{info['branch']}`", inline=True)
             embed.add_field(name="PID", value=f"`{info['pid']}`", inline=True)
             embed.add_field(name="Python", value=f"`{info['python']}`", inline=True)
