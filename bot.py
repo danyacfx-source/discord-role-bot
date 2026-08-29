@@ -27,6 +27,7 @@ from cogs.poll import Poll
 from cogs.voice_xp import VoiceXP
 from cogs.birthdays import Birthdays
 from cogs.role_menu import RoleMenu
+from cogs.guild_logs import GuildLogs
 from notify import DiscordLogHandler, mark_ready, notify_loop
 from twitch_bot.eft_logs import EftLogWatcher
 
@@ -122,6 +123,7 @@ async def main():
         await bot.add_cog(VoiceXP(bot))
         await bot.add_cog(Birthdays(bot))
         await bot.add_cog(RoleMenu(bot))
+        await bot.add_cog(GuildLogs(bot))
         await bot.start(TOKEN)
 
 

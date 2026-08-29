@@ -57,6 +57,18 @@ class DiscordAutomod(commands.Cog):
             getattr(message.channel, "name", message.channel.id),
             reason,
         )
+        cog = self.bot.get_cog("GuildLogs")
+        if cog is not None:
+            try:
+                await cog.post_mod_log(
+                    member=member,
+                    action="Автомод",
+                    reason=reason,
+                    channel=message.channel,
+                    content=content,
+                )
+            except Exception:
+                log.exception("Ошибка отправки лога модерации")
 
     def _has_ignored_role(self, member: discord.Member) -> bool:
         ignored = set(self.config.get("ignore_roles") or [])
@@ -140,6 +152,16 @@ class DiscordAutomod(commands.Cog):
                 try:
                     await member.ban(reason=f"Automod: {ban_after} нарушений подряд")
                     log.warning("Automod: бан %s (%s)", member, reason)
+                    cog = self.bot.get_cog("GuildLogs")
+                    if cog is not None:
+                        try:
+                            await cog.post_mod_log(
+                                member=member,
+                                action="Автомод: бан",
+                                reason=f"{ban_after} нарушения подряд ({reason})",
+                            )
+                        except Exception:
+                            log.exception("Ошибка отправки лога модерации")
                 except discord.Forbidden:
                     pass
                 self._timeout_counts[member.id] = 0
