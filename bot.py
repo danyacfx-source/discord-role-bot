@@ -16,6 +16,7 @@ from cogs.ram_report import RamReport
 from cogs.twitch import Twitch
 from cogs.welcome import Welcome
 from cogs.reaction_roles import ReactionRoles
+from cogs.rules_gate import RulesGate
 from cogs.season import Season
 from cogs.overlay import Overlay
 from cogs.youtube import YouTube
@@ -122,6 +123,7 @@ async def main():
         await bot.add_cog(Twitch(bot))
         await bot.add_cog(Welcome(bot))
         await bot.add_cog(ReactionRoles(bot))
+        await bot.add_cog(RulesGate(bot))
         await bot.add_cog(Season(bot))
         await bot.add_cog(Overlay(bot))
         await bot.add_cog(YouTube(bot))
