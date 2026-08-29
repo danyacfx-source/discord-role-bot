@@ -4,6 +4,7 @@ import logging
 import aiohttp
 import twitchio
 
+from config import PROXY_URL
 from twitch_bot.twitch_cmds import CommandHandler
 from twitch_bot.moderation import Moderation
 from twitch_bot.greetings import Greetings
@@ -67,7 +68,7 @@ class TwitchChatClient(twitchio.Client):
         payload = {"query": query, "variables": {"login": channel_name}}
         try:
             timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
                 async with session.post("https://gql.twitch.tv/gql", headers=headers, json=payload) as resp:
                     data = await resp.json()
             user = (data.get("data") or {}).get("user") or {}

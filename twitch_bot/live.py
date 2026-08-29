@@ -8,6 +8,7 @@ from typing import Optional
 
 import aiohttp
 import discord
+from config import PROXY_URL
 
 log = logging.getLogger("twitch")
 
@@ -78,7 +79,7 @@ class StreamLiveNotifier:
             log.info("StreamLive: нет channel_id, модуль неактивен")
             return
         timeout = aiohttp.ClientTimeout(total=20)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
             self._session = session
             log.info("StreamLive: мониторинг старта стрима каждые %d мин", interval // 60)
             while True:
@@ -379,7 +380,7 @@ class StreamLiveNotifier:
         payload = {"query": query, "variables": {"login": channel}}
         try:
             timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
                 async with session.post(
                     "https://gql.twitch.tv/gql", headers=headers, json=payload
                 ) as resp:
@@ -405,7 +406,7 @@ class StreamLiveNotifier:
         payload = {"query": query, "variables": {"id": channel_id}}
         try:
             timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
                 async with session.post(
                     "https://gql.twitch.tv/gql", headers=headers, json=payload
                 ) as resp:
@@ -427,7 +428,7 @@ class StreamLiveNotifier:
         payload = {"query": query, "variables": {"login": channel}}
         try:
             timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
                 async with session.post(
                     "https://gql.twitch.tv/gql", headers=headers, json=payload
                 ) as resp:

@@ -8,7 +8,7 @@ from pathlib import Path
 import aiohttp
 import discord
 from discord.ext import commands, tasks
-from config import CONFIG
+from config import CONFIG, PROXY_URL
 
 log = logging.getLogger("engagement")
 
@@ -102,7 +102,7 @@ class Engagement(commands.Cog):
             return set()
         try:
             timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
                 token_resp = await session.post("https://id.twitch.tv/oauth2/token", params={
                     "client_id": client_id,
                     "client_secret": client_secret,

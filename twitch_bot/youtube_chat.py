@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 
 import aiohttp
 
+from config import PROXY_URL
 from twitch_bot.youtube_token import get_token_manager
 from twitch_bot.chat_overlay import push_chat
 
@@ -163,7 +164,7 @@ class YouTubeChatClient:
     async def start(self):
         self._running = True
         timeout = aiohttp.ClientTimeout(total=30)
-        self._session = aiohttp.ClientSession(timeout=timeout)
+        self._session = aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None)
         log.info("YouTube: мониторинг @%s запущен", self.channel_handle)
         try:
             await self._loop()

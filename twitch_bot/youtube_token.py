@@ -3,7 +3,7 @@ import logging
 
 import aiohttp
 
-from config import CONFIG
+from config import CONFIG, PROXY_URL
 
 log = logging.getLogger("youtube_token")
 
@@ -18,7 +18,7 @@ class YouTubeTokenManager:
 
     async def get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30))
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30), proxy=PROXY_URL or None)
         return self._session
 
     async def close(self):
