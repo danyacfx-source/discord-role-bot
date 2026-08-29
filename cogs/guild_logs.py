@@ -1,5 +1,8 @@
 import datetime
 import logging
+import os
+import subprocess
+import sys
 import time
 from collections import OrderedDict
 
@@ -64,6 +67,7 @@ class GuildLogs(commands.Cog):
         if self._startup_posted or not self.cfg.get("startup_notify", True):
             return
         self._startup_posted = True
+        await self._post_deploy_log()
         ch = self._cnl("bot_log_channel_id")
         if ch is None:
             return
@@ -78,6 +82,51 @@ class GuildLogs(commands.Cog):
             await ch.send(embed=embed)
         except Exception:
             log.exception("Не удалось отправить сообщение о запуске")
+
+    @staticmethod
+    def _deploy_info() -> dict:
+        info = {
+            "pid": os.getpid(),
+            "python": sys.version.split()[0],
+            "repo": os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        }
+        try:
+            out = subprocess.run(
+                ["git", "-C", info["repo"], "rev-parse", "--short", "HEAD"],
+                capture_output=True, text=True, timeout=10,
+            )
+            info["commit"] = (out.stdout or "").strip() or "?"
+        except Exception:
+            info["commit"] = "?"
+        try:
+            out = subprocess.run(
+                ["git", "-C", info["repo"], "rev-parse", "--abbrev-ref", "HEAD"],
+                capture_output=True, text=True, timeout=10,
+            )
+            info["branch"] = (out.stdout or "").strip() or "?"
+        except Exception:
+            info["branch"] = "?"
+        return info
+
+    async def _post_deploy_log(self):
+        ch = self._cnl("deploy_log_channel_id")
+        if ch is None:
+            return
+        try:
+            info = self._deploy_info()
+            embed = discord.Embed(
+                title="Deploys",
+                color=discord.Color.brand_green(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc),
+            )
+            embed.add_field(name="Бот", value=f"<@{self.bot.user.id}>", inline=True)
+            embed.add_field(name="Версия (commit)", value=f"`{info['commit']}`", inline=True)
+            embed.add_field(name="Ветка", value=f"`{info['branch']}`", inline=True)
+            embed.add_field(name="PID", value=f"`{info['pid']}`", inline=True)
+            embed.add_field(name="Python", value=f"`{info['python']}`", inline=True)
+            await ch.send(embed=embed)
+        except Exception:
+            log.exception("Не удалось отправить лог деплоя")
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
