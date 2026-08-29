@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 import discord
 from discord.ext import commands
@@ -35,7 +36,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler("bot.log", encoding="utf-8"),
+        logging.FileHandler(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.log"),
+            encoding="utf-8",
+        ),
         logging.StreamHandler(),
     ],
 )
