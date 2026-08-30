@@ -1,4 +1,5 @@
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -373,8 +374,8 @@ class Overlay(commands.Cog):
         app.router.add_get("/chat/api", self._chat_api)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
-        host = OVERLAY.get("host", "127.0.0.1")
-        port = OVERLAY.get("port", 8765)
+        host = os.environ.get("OVERLAY_HOST") or OVERLAY.get("host", "127.0.0.1")
+        port = int(os.environ.get("OVERLAY_PORT") or OVERLAY.get("port", 8765))
         try:
             self._site = web.TCPSite(self._runner, host, port)
             await self._site.start()

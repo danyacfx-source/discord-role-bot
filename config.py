@@ -4,7 +4,10 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = BASE_DIR / "config.json"
-DB_PATH = BASE_DIR / "data.db"
+
+DATA_DIR = Path(os.environ.get("DATA_DIR") or (BASE_DIR / "data"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = Path(os.environ.get("DB_DIR") or BASE_DIR) / "data.db"
 
 _env_path = BASE_DIR / ".env"
 if _env_path.exists():
@@ -19,7 +22,7 @@ if _env_path.exists():
 with open(CONFIG_PATH, "r", encoding="utf-8") as f:
     CONFIG = json.load(f)
 
-CONFIG["token"] = os.environ.get("DISCORD_TOKEN") or CONFIG.get("token", "")
+CONFIG["token"] = os.environ.get("DISCORD_TOKEN") or os.environ.get("DISCORD_BOT_TOKEN") or CONFIG.get("token", "")
 CONFIG.setdefault("twitch", {})["oauth"] = os.environ.get("TWITCH_OAUTH") or CONFIG.get("twitch", {}).get("oauth", "")
 CONFIG.setdefault("youtube", {})["client_id"] = os.environ.get("YOUTUBE_CLIENT_ID") or CONFIG.get("youtube", {}).get("client_id", "")
 CONFIG.setdefault("youtube", {})["client_secret"] = os.environ.get("YOUTUBE_CLIENT_SECRET") or CONFIG.get("youtube", {}).get("client_secret", "")

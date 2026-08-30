@@ -1,6 +1,7 @@
 import json
 import time
-from pathlib import Path
+
+from config import DATA_DIR
 
 SEEN_TTL = 7 * 24 * 3600
 
@@ -8,13 +9,7 @@ SEEN_TTL = 7 * 24 * 3600
 class Greetings:
     def __init__(self, config):
         self.config = config or {}
-        data_dir = Path(__file__).resolve().parent.parent / "data"
-        try:
-            data_dir.mkdir(parents=True, exist_ok=True)
-        except OSError:
-            data_dir = Path(__file__).resolve().parent / "data"
-            data_dir.mkdir(parents=True, exist_ok=True)
-        self.seen_path = data_dir / "seen_users.json"
+        self.seen_path = DATA_DIR / "seen_users.json"
         self.seen = self._load()
         self._last_welcome = {}
 

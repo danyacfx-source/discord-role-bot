@@ -7,11 +7,12 @@ from pathlib import Path
 
 from twitch_bot.raid_state import raid_auto_end, raid_auto_start
 from twitch_bot.stream_state import is_stream_live
+from config import DATA_DIR
 
 log = logging.getLogger("eft_logs")
 
 LOG_ROOT = Path(r"D:\EscapeFromTarkov\fixer\Logs")
-STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "eft_logs_state.json"
+STATE_FILE = DATA_DIR / "eft_logs_state.json"
 
 TRANSIT_RE = re.compile(r"\[Transit\] Flag:Common.*Locations:(\w+)")
 MENU_RE = re.compile(r"\[DevLog\] === MENU LOAD PROFILE ===")

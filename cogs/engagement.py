@@ -8,12 +8,9 @@ from pathlib import Path
 import aiohttp
 import discord
 from discord.ext import commands, tasks
-from config import CONFIG, PROXY_URL
+from config import CONFIG, PROXY_URL, DATA_DIR
 
 log = logging.getLogger("engagement")
-
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 LOYALTY_FILE = DATA_DIR / "loyalty.json"
 STREAK_FILE = DATA_DIR / "streaks.json"

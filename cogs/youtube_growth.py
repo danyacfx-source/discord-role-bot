@@ -9,13 +9,11 @@ from pathlib import Path
 import discord
 from discord.ext import commands, tasks
 
-from config import CONFIG
+from config import CONFIG, DATA_DIR
 from twitch_bot.youtube_token import get_token_manager
 
 log = logging.getLogger("youtube_growth")
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
 YT_STATE_FILE = DATA_DIR / "youtube_growth_state.json"
 MSK = timezone(timedelta(hours=3))
 

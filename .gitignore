@@ -1,5 +1,4 @@
-config.json
-.env
+﻿.env
 data.db
 __pycache__/
 *.pyc

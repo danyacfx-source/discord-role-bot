@@ -8,11 +8,11 @@ from typing import Optional
 
 import aiohttp
 import discord
-from config import PROXY_URL
+from config import PROXY_URL, DATA_DIR
 
 log = logging.getLogger("twitch")
 
-STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "twitch_live_state.json"
+STATE_FILE = DATA_DIR / "twitch_live_state.json"
 MSK = timezone(timedelta(hours=3))
 _SENTINEL = object()
 
