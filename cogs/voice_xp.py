@@ -45,8 +45,12 @@ class VoiceXP(commands.Cog):
                 for member in channel.members:
                     if member.bot:
                         continue
-                    if skip_muted and (member.self_mute or member.self_deaf or member.mute or member.deafen):
-                        continue
+                    if skip_muted:
+                        voice = member.voice
+                        if member.mute or member.deafen or (
+                            voice is not None and (voice.self_mute or voice.self_deaf)
+                        ):
+                            continue
                     points, _xp = add_message(guild.id, member.id)
                     season_add_message(guild.id, member.id)
                     leveling = self.bot.get_cog("Leveling")
