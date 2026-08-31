@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import logging
 import os
@@ -30,6 +31,8 @@ class GuildLogs(commands.Cog):
         self._max_cache = 1200
         self._removals: dict[int, float] = {}
         self._startup_posted = False
+        self._ready_at = None
+        self._last_log_send = 0.0
 
     def _cid(self, key: str) -> int:
         return self.cfg.get(key, 0)
@@ -64,6 +67,7 @@ class GuildLogs(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        self._ready_at = time.monotonic()
         if self._startup_posted or not self.cfg.get("startup_notify", True):
             return
         self._startup_posted = True
@@ -306,6 +310,8 @@ class GuildLogs(commands.Cog):
         b, a = before.channel, after.channel
         if b is a:
             return
+        if self._ready_at is not None and (time.monotonic() - self._ready_at) < 20:
+            return
         ch = self._cnl("voice_log_channel_id")
         if ch is None:
             return
@@ -329,8 +335,12 @@ class GuildLogs(commands.Cog):
         embed.add_field(name="Канал", value=f"`{name}` (`{cid}`)", inline=True)
         if b is not None and a is not None and b is not a:
             embed.add_field(name="Было", value=f"`{b.name}`", inline=True)
+        wait = 0.8 - (time.monotonic() - self._last_log_send)
+        if wait > 0:
+            await asyncio.sleep(wait)
         try:
             await ch.send(embed=embed)
+            self._last_log_send = time.monotonic()
         except Exception:
             log.exception("Ошибка лога голосового канала")
 
