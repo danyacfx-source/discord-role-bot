@@ -13,7 +13,7 @@
     "Чемпион сезона",
     "Серебро сезона",
     "Бронза сезона",
-    "Тарков",
+    "Tarkov",
     "SQUAD",
     "War Thunder",
     "Minecraft"
@@ -89,7 +89,7 @@
       "order": 14,
       "permissions": []
     },
-    "Тарков": {
+    "Tarkov": {
       "color": "#ad6242",
       "order": 15,
       "permissions": []
@@ -199,7 +199,7 @@
     "roles": [
       "Стрим-оповещения",
       "Сборки",
-      "Тарков",
+      "Tarkov",
       "SQUAD",
       "War Thunder",
       "Minecraft"
@@ -375,7 +375,7 @@
             "connect": false
           },
           {
-            "role": "Тарков",
+            "role": "Tarkov",
             "view_channel": true,
             "send_messages": true,
             "read_message_history": true,
@@ -407,7 +407,7 @@
             "connect": false
           },
           {
-            "role": "Тарков",
+            "role": "Tarkov",
             "view_channel": true,
             "send_messages": true,
             "read_message_history": true,
@@ -435,7 +435,7 @@
             "connect": false
           },
           {
-            "role": "Тарков",
+            "role": "Tarkov",
             "view_channel": true,
             "connect": true,
             "speak": true
