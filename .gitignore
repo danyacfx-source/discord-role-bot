@@ -1,4 +1,6 @@
 ﻿.env
+# dummy line to trigger bothost redeploy (env vars apply on container rebuild)
+bump
 data.db
 __pycache__/
 *.pyc
