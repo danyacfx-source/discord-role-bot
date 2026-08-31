@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import logging
 import re
+import time
 import traceback
 
 import discord
@@ -10,6 +11,23 @@ from config import GUILD_ID, LOG_CHANNEL_ID, PING_ROLES, CONFIG
 
 _handler_queue: asyncio.Queue = asyncio.Queue()
 _startup_done: bool = False
+
+_DEDUP_SECONDS = 45
+_recent_logs: "dict[str, float]" = {}
+
+
+def _is_duplicate(record: logging.LogRecord) -> bool:
+    key = f"{record.name}|{record.funcName}|{record.lineno}|{record.getMessage()}"
+    now = time.time()
+    if _recent_logs.get(key, 0.0) > now - _DEDUP_SECONDS:
+        return True
+    if len(_recent_logs) > 200:
+        cutoff = now - _DEDUP_SECONDS
+        stale = [k for k, v in _recent_logs.items() if v < cutoff]
+        for k in stale:
+            del _recent_logs[k]
+    _recent_logs[key] = now
+    return False
 
 _SENSITIVE_RE = re.compile(
     r"(token|oauth|secret|password|api_key|authorization)"
@@ -110,6 +128,8 @@ async def notify_loop(bot: discord.Client):
     await asyncio.sleep(10)
     while True:
         record = await _handler_queue.get()
+        if _is_duplicate(record):
+            continue
         try:
             await _post(bot, record)
         except Exception:
