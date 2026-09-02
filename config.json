@@ -583,7 +583,7 @@
     "promo_message": "",
     "promo_interval_seconds": 1800,
     "live": {
-      "enabled": false,
+      "enabled": true,
       "channel": "dendosicsh",
       "channel_id": 1535055498020126750,
       "poll_interval_minutes": 1,
