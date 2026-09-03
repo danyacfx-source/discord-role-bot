@@ -723,7 +723,7 @@
     },
     "kick": {
         "enabled": true,
-        "channel": "RUDendich",
+        "channel": "dendich",
         "live": {
             "enabled": true,
             "channel_id": 1535055498020126750,
