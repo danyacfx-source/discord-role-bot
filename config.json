@@ -728,9 +728,9 @@
             "enabled": true,
             "channel_id": 1535055498020126750,
             "ping_role_id": "1536723619366051901",
-            "poll_interval_seconds": 60,
+            "poll_interval_seconds": 300,
             "status_viewers": true,
-            "status_poll_seconds": 120,
+            "status_poll_seconds": 300,
             "prestream_timer_minutes": 5,
             "eft_logs": {
                 "enabled": true,
