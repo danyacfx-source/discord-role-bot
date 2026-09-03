@@ -142,9 +142,9 @@
         "enabled": true,
         "send_dm": true,
         "welcome_channel_id": 1524743224319672452,
-        "welcome_channel_enabled": true,
+        "welcome_channel_enabled": false,
         "leave_channel_id": 1524743224319672452,
-        "leave_channel_enabled": true,
+        "leave_channel_enabled": false,
         "title": "Добро пожаловать на дискорд сервер dendich!",
         "intro": "Рады видеть тебя на нашем сервере! Мы играем в Escape from Tarkov, SQUAD, War Thunder и Minecraft — общаемся на счёт различных игр, смотрим стримы и играем вместе. Для начала прочитай правила в #правила и нажми там ✅ — это откроет тебе доступ к каналам #выдача-ролей и #уведомление-о-стримах.",
         "channel_descriptions": {
