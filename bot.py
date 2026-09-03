@@ -14,7 +14,7 @@ from cogs.setup import Setup
 from cogs.tempvoice import TempChannelView, TempVoice
 from cogs.permissions import Permissions
 from cogs.ram_report import RamReport
-from cogs.twitch import Twitch
+from cogs.kick import Kick
 from cogs.welcome import Welcome
 from cogs.reaction_roles import ReactionRoles
 from cogs.rules_gate import RulesGate
@@ -22,7 +22,7 @@ from cogs.season import Season
 from cogs.overlay import Overlay
 from cogs.youtube import YouTube
 from cogs.giveaways import Giveaways
-from cogs.engagement import Engagement, TwitchChatGames
+from cogs.engagement import Engagement
 from cogs.youtube_growth import YouTubeGrowth
 from cogs.server_stats import ServerStats
 from cogs.automod import DiscordAutomod
@@ -34,7 +34,6 @@ from cogs.role_menu import RoleMenu
 from cogs.guild_logs import GuildLogs
 from notify import DiscordLogHandler, mark_ready, notify_loop
 from twitch_bot.eft_logs import EftLogWatcher
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -89,7 +88,7 @@ async def on_ready():
         bot._notify_started = True
         mark_ready()
         bot.loop.create_task(notify_loop(bot))
-    eft_cfg = (CONFIG.get("twitch") or {}).get("live") or {}
+    eft_cfg = (CONFIG.get("kick") or {}).get("live") or {}
     eft_cfg = eft_cfg.get("eft_logs") or {}
     if eft_cfg.get("enabled", False) and bot.eft_logs_watcher is None:
         bot.eft_logs_watcher = EftLogWatcher(eft_cfg)
@@ -123,7 +122,7 @@ async def main():
         await bot.add_cog(EmbedBuilder(bot))
         await bot.add_cog(Permissions(bot))
         await bot.add_cog(RamReport(bot))
-        await bot.add_cog(Twitch(bot))
+        await bot.add_cog(Kick(bot))
         await bot.add_cog(Welcome(bot))
         await bot.add_cog(ReactionRoles(bot))
         await bot.add_cog(RulesGate(bot))
@@ -132,7 +131,6 @@ async def main():
         await bot.add_cog(YouTube(bot))
         await bot.add_cog(Giveaways(bot))
         await bot.add_cog(Engagement(bot))
-        await bot.add_cog(TwitchChatGames(bot))
         await bot.add_cog(YouTubeGrowth(bot))
         await bot.add_cog(ServerStats(bot))
         await bot.add_cog(DiscordAutomod(bot))

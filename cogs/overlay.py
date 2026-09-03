@@ -317,7 +317,7 @@ class Overlay(commands.Cog):
             "map": state.get("map"),
             "quest": state.get("quest"),
             "allergy": state.get("allergy"),
-            "counters": [{"name": n, "value": v} for n, v in counter_list((CONFIG.get("twitch") or {}).get("channel", "")) if n != "tod"],
+            "counters": [{"name": n, "value": v} for n, v in counter_list((CONFIG.get("kick") or {}).get("channel", "")) if n != "tod"],
             "raid": {
                 "status": raid.get("status"),
                 "started_at": raid.get("started_at"),
@@ -337,7 +337,7 @@ class Overlay(commands.Cog):
     async def _page(self, request):
         if not self._public_pages and not self._valid_auth(request):
             return web.json_response({"error": "unauthorized"}, status=401)
-        prestream_min = (CONFIG.get("twitch") or {}).get("live") or {}
+        prestream_min = (CONFIG.get("kick") or {}).get("live") or {}
         prestream_min = prestream_min.get("prestream_timer_minutes", 5)
         html = PAGE.replace("__PRESTREAM_MINUTES__", str(prestream_min))
         html = html.replace("__OVERLAY_TOKEN__", self._auth_token)

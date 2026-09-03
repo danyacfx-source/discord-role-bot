@@ -1,930 +1,742 @@
 {
-  "token": "",
-  "bot_name": "Милый Килла",
-  "guild_id": 1524743223866556456,
-  "owner_id": 635370416252125184,
-  "level_roles_enabled": false,
-  "levels": [],
-  "extra_roles": [
-    "Сборщик",
-    "СБЭУ шприц",
-    "Стрим-оповещения",
-    "Сборки",
-    "Чемпион сезона",
-    "Серебро сезона",
-    "Бронза сезона",
-    "Tarkov",
-    "SQUAD",
-    "War Thunder",
-    "Minecraft"
-  ],
-  "role_settings": {
-    "Master": {
-      "color": "#e74c3c",
-      "order": 1,
-      "permissions": []
-    },
-    "Veteran": {
-      "color": "#9b59b6",
-      "order": 2,
-      "permissions": []
-    },
-    "Raider": {
-      "color": "#e67e22",
-      "order": 3,
-      "permissions": []
-    },
-    "Regular": {
-      "color": "#3498db",
-      "order": 4,
-      "permissions": []
-    },
-    "Local": {
-      "color": "#2ecc71",
-      "order": 5,
-      "permissions": []
-    },
-    "Tourist": {
-      "color": "#f1c40f",
-      "order": 6,
-      "permissions": []
-    },
-    "Newcomer": {
-      "color": "#95a5a6",
-      "order": 7,
-      "permissions": []
-    },
-    "Стрим-оповещения": {
-      "color": "#7289da",
-      "order": 8,
-      "permissions": []
-    },
-    "Сборки": {
-      "color": "#f39c12",
-      "order": 9,
-      "permissions": []
-    },
-    "Сборщик": {
-      "color": "#00e5ff",
-      "order": 10,
-      "permissions": []
-    },
-    "СБЭУ шприц": {
-      "color": "#ff6b6b",
-      "order": 11,
-      "permissions": []
-    },
-    "Чемпион сезона": {
-      "color": "#ffd700",
-      "order": 12,
-      "permissions": []
-    },
-    "Серебро сезона": {
-      "color": "#c0c0c0",
-      "order": 13,
-      "permissions": []
-    },
-    "Бронза сезона": {
-      "color": "#cd7f32",
-      "order": 14,
-      "permissions": []
-    },
-    "Tarkov": {
-      "color": "#ad6242",
-      "order": 15,
-      "permissions": []
-    },
-    "SQUAD": {
-      "color": "#2ea2cc",
-      "order": 16,
-      "permissions": []
-    },
-    "War Thunder": {
-      "color": "#f8a800",
-      "order": 17,
-      "permissions": []
-    },
-    "Minecraft": {
-      "color": "#3faf46",
-      "order": 18,
-      "permissions": []
-    }
-  },
-  "season": {
-    "enabled": true,
-    "reward_roles": [
-      "Чемпион сезона",
-      "Серебро сезона",
-      "Бронза сезона"
-    ],
-    "announce_channel_id": 1534711421026304132
-  },
-  "overlay": {
-    "enabled": true,
-    "host": "127.0.0.1",
-    "port": 8765,
-    "token": "qwEr7TyUi2OpAsDfGhJkLzXcVbNm9QwEr",
-    "donation_goal": {
-      "enabled": false,
-      "target": 10000,
-      "currency": "₽",
-      "label": "Донат-цель"
-    }
-  },
-  "whitelist_channels": [],
-  "exclude_roles": [],
-  "announce_channel_id": 0,
-  "log_channel_id": 1534711234673246300,
-  "ping_roles": [
-    "Owner"
-  ],
-  "welcome": {
-    "enabled": true,
-    "send_dm": true,
-    "welcome_channel_id": 1524743224319672452,
-    "welcome_channel_enabled": true,
-    "leave_channel_id": 1524743224319672452,
-    "leave_channel_enabled": true,
-    "title": "Добро пожаловать на дискорд сервер dendich!",
-    "intro": "Рады видеть тебя на нашем сервере! Мы играем в Escape from Tarkov, SQUAD, War Thunder и Minecraft — общаемся на счёт различных игр, смотрим стримы и играем вместе. Для начала прочитай правила в #правила и нажми там ✅ — это откроет тебе доступ к каналам #выдача-ролей и #уведомление-о-стримах.",
-    "channel_descriptions": {
-      "вход-в-коммунити": "Лента вступивших в Discord участников",
-      "правила": "Свод правил сервера — обязательно к прочтению",
-      "уведомление-о-стримах": "Анонсы стримов и напоминания об эфирах",
-      "общий": "Основное общение: обсуждение стримов, игры и всего на свете",
-      "общий-18": "Общение 18+: взрослые темы — будьте адекватны",
-      "оффтоп": "Всё, что не по теме: мемы из жизни, разговоры обо всём",
-      "мемы": "Скидывай лучшие мемы и забавные видео",
-      "сборки": "Обсуждение сборок, прокачки и снаряжения",
-      "предложить-сборку": "Предложи свою сборку или идею для канала",
-      "squad-chat": "Общение по SQUAD: тактика, составы и бои",
-      "squad-teams": "Подбор отряда и сёрч по SQUAD",
-      "wt-chat": "Общение по War Thunder: боты, экипаж и прокачка",
-      "wt-squadron": "Ищем экипаж и летим в бой",
-      "minecraft-chat": "Общение по Minecraft: выживание, фермы и базы",
-      "minecraft-builds": "Показывай свои постройки и схемы",
-      "спонсор-чат": "Закрытый чат для спонсоров и сборщиков"
-    },
-    "voice_descriptions": {
-      "➕ Создать канал": "Создай временный голосовой канал — нажми и назови его",
-      "Разговорный": "Голосовой канал для общения",
-      "Сбор рейда": "Голосовой канал для сбора на рейд"
-    },
-    "hidden_voice": [
-      "Спонсорский войс"
-    ],
-    "footer": "Приятного времяпрепровождения! 🔥"
-  },
-  "reaction_roles": {
-    "enabled": false,
-    "channel_id": 1534711255330328768,
-    "message": "**Выбери уведомления**\nНажми на реакцию, чтобы получить или снять роль:",
-    "roles": [
-      {
-        "emoji": "🔔",
-        "role": "Стрим-оповещения"
-      },
-      {
-        "emoji": "🛠",
-        "role": "Сборки"
-      }
-    ]
-  },
-  "role_menu": {
-    "enabled": true,
-    "channel_id": 1534711255330328768,
-    "message": "**Уведомления и роли меню**",
-    "placeholder": "Выбери роли…",
-    "max_values": 10,
-    "roles": [
-      "Стрим-оповещения",
-      "Сборки",
-      "Tarkov",
-      "SQUAD",
-      "War Thunder",
-      "Minecraft"
-    ]
-  },
-  "rules_gate": {
-    "enabled": true,
-    "channel_id": 1524768657429893221,
-    "message_id": 1534751802514346146,
-    "emoji": "✅",
-    "role": "Ознакомлен"
-  },
-  "server_stats": {
-    "enabled": true,
-    "category": "СТАТИСТИКА",
-    "update_seconds": 300,
-    "channels": [
-      {
-        "name": "Участники",
-        "emoji": "👥",
-        "type": "members"
-      },
-      {
-        "name": "Онлайн",
-        "emoji": "🟢",
-        "type": "online"
-      }
-    ]
-  },
-  "discord_automod": {
-    "enabled": true,
-    "banned_words": [
-      "1488",
-      "нага",
-      "нига",
-      "nigger",
-      "nigga",
-      "заходи на",
-      "бесплатно",
-      "ссылка в описании",
-      "подпишись на"
-    ],
-    "block_links": true,
-    "allowed_links": [
-      "twitch.tv",
-      "youtube.com",
-      "youtu.be",
-      "discord.gg",
-      "discord.com",
-      "donatty.com",
-      "github.io"
-    ],
-    "caps_threshold": 0.8,
-    "caps_min_len": 12,
-    "message_cooldown": 2,
-    "max_messages_in_window": 5,
-    "timeout_duration": 300,
-    "ban_after_timeouts": 3,
-    "ignore_roles": [
-      "Owner",
-      "Moderator"
-    ],
-    "ignored_channels": []
-  },
-  "voice_xp": {
-    "enabled": true,
-    "interval_minutes": 5,
-    "skip_muted": true
-  },
-  "birthday": {
-    "enabled": true,
-    "channel_id": 1534711421026304132,
-    "announce_hour": 9,
-    "role_ping": ""
-  },
-  "socials": {
-    "discord": "https://discord.gg/rEDcPBuk6c",
-    "site": "https://danyacfx-source.github.io/dendich/",
-    "youtube": "https://www.youtube.com/@Dendosich",
-    "twitch": "https://www.twitch.tv/dendosicsh",
-    "donate": "https://donatty.com/dendich"
-  },
-  "temp_triggers": {
-    "1534748632270508192": "В рейд",
-    "1534748653888077995": "Обсуждения",
-    "1543056182640648294": "SQUAD",
-    "1543056185908011008": "War Thunder",
-    "1543056187476549853": "Minecraft"
-  },
-  "channels": {
-    "Tarkov": {
-      "type": "text",
-      "channels": [
-        "общий",
-        "оффтоп",
-        "мемы"
-      ]
-    },
-    "РЕЙДЫ": {
-      "type": "temp",
-      "create": "➕ Создать канал",
-      "prefix": "Сбор рейда"
-    },
-    "ГОЛОС": {
-      "type": "temp",
-      "create": "➕ Создать канал",
-      "prefix": "Разговорный"
-    },
-    "СПОНСОРЫ": {
-      "type": "sponsor",
-      "roles": [
+    "token": "",
+    "bot_name": "Милый Килла",
+    "guild_id": 1524743223866556456,
+    "owner_id": 635370416252125184,
+    "level_roles_enabled": false,
+    "levels": [],
+    "extra_roles": [
         "Сборщик",
-        "СБЭУ шприц"
-      ],
-      "text_channels": [
-        "спонсор-чат"
-      ],
-      "voice_channels": [
-        "Спонсорский войс"
-      ]
-    },
-    "SQUAD": {
-      "type": "text",
-      "channels": [
-        "squad-chat",
-        "squad-teams"
-      ],
-      "voice_channels": [
-        "➕ Создать канал"
-      ]
-    },
-    "War Thunder": {
-      "type": "text",
-      "channels": [
-        "wt-chat",
-        "wt-squadron"
-      ],
-      "voice_channels": [
-        "➕ Создать канал"
-      ]
-    },
-    "Minecraft": {
-      "type": "text",
-      "channels": [
-        "minecraft-chat",
-        "minecraft-builds"
-      ],
-      "voice_channels": [
-        "➕ Создать канал"
-      ]
-    },
-    "Для не определившихся": {
-      "type": "text",
-      "channels": [
-        "общий",
-        "общий-18"
-      ],
-      "voice_channels": [
-        "Общий 1",
-        "Общий 2"
-      ]
-    }
-  },
-  "permissions": {
-    "auto_apply": true,
-    "categories": {
-      "1534711415883956284": {
-        "name": "ЧАТЫ (Тарков)",
-        "rules": [
-          {
-            "role": "@everyone",
-            "view_channel": false,
-            "connect": false
-          },
-          {
-            "role": "Tarkov",
-            "view_channel": true,
-            "send_messages": true,
-            "read_message_history": true,
-            "attach_files": true,
-            "embed_links": true,
-            "connect": true,
-            "speak": true
-          },
-          {
-            "role": "Moderator",
-            "view_channel": true,
-            "connect": true,
-            "speak": true,
-            "send_messages": true,
-            "read_message_history": true
-          },
-          {
-            "role": "Милый Килла",
-            "view_channel": true
-          }
-        ]
-      },
-      "1534711425933639762": {
-        "name": "Сборки (Тарков)",
-        "rules": [
-          {
-            "role": "@everyone",
-            "view_channel": false,
-            "connect": false
-          },
-          {
-            "role": "Tarkov",
-            "view_channel": true,
-            "send_messages": true,
-            "read_message_history": true,
-            "attach_files": true,
-            "embed_links": true
-          },
-          {
-            "role": "Moderator",
-            "view_channel": true,
-            "send_messages": true,
-            "read_message_history": true
-          },
-          {
-            "role": "Милый Килла",
-            "view_channel": true
-          }
-        ]
-      },
-      "1534733986612645910": {
-        "name": "РЕЙДЫ (Тарков)",
-        "rules": [
-          {
-            "role": "@everyone",
-            "view_channel": false,
-            "connect": false
-          },
-          {
-            "role": "Tarkov",
-            "view_channel": true,
-            "connect": true,
-            "speak": true
-          },
-          {
-            "role": "Moderator",
-            "view_channel": true,
-            "connect": true,
-            "speak": true
-          },
-          {
-            "role": "Милый Килла",
-            "view_channel": true
-          }
-        ]
-      },
-      "1543054695134666782": {
-        "name": "SQUAD",
-        "rules": [
-          {
-            "role": "@everyone",
-            "view_channel": false,
-            "connect": false
-          },
-          {
-            "role": "SQUAD",
-            "view_channel": true,
-            "send_messages": true,
-            "read_message_history": true,
-            "attach_files": true,
-            "embed_links": true,
-            "connect": true,
-            "speak": true
-          },
-          {
-            "role": "Moderator",
-            "view_channel": true,
-            "connect": true,
-            "speak": true,
-            "send_messages": true,
-            "read_message_history": true
-          },
-          {
-            "role": "Милый Килла",
-            "view_channel": true
-          }
-        ]
-      },
-      "1543054704047693834": {
-        "name": "War Thunder",
-        "rules": [
-          {
-            "role": "@everyone",
-            "view_channel": false,
-            "connect": false
-          },
-          {
-            "role": "War Thunder",
-            "view_channel": true,
-            "send_messages": true,
-            "read_message_history": true,
-            "attach_files": true,
-            "embed_links": true,
-            "connect": true,
-            "speak": true
-          },
-          {
-            "role": "Moderator",
-            "view_channel": true,
-            "connect": true,
-            "speak": true,
-            "send_messages": true,
-            "read_message_history": true
-          },
-          {
-            "role": "Милый Килла",
-            "view_channel": true
-          }
-        ]
-      },
-      "1543054712859918377": {
-        "name": "Minecraft",
-        "rules": [
-          {
-            "role": "@everyone",
-            "view_channel": false,
-            "connect": false
-          },
-          {
-            "role": "Minecraft",
-            "view_channel": true,
-            "send_messages": true,
-            "read_message_history": true,
-            "attach_files": true,
-            "embed_links": true,
-            "connect": true,
-            "speak": true
-          },
-          {
-            "role": "Moderator",
-            "view_channel": true,
-            "connect": true,
-            "speak": true,
-            "send_messages": true,
-            "read_message_history": true
-          },
-          {
-            "role": "Милый Килла",
-            "view_channel": true
-          }
-        ]
-      }
-    }
-  },
-  "ram_report": {
-    "enabled": true,
-    "channel_id": 1534720904221692005,
-    "interval_minutes": 30
-  },
-  "guild_logs": {
-    "enabled": true,
-    "member_log_channel_id": 1543060997823139941,
-    "message_log_channel_id": 1543061000956153911,
-    "voice_log_channel_id": 1534711282748362803,
-    "mod_log_channel_id": 1543061004307538020,
-    "bot_log_channel_id": 1534711234673246300,
-    "startup_notify": true,
-    "ignore_bots": true,
-    "ignore_category_ids": [
-      1534711206605230120
+        "СБЭУ шприц",
+        "Стрим-оповещения",
+        "Сборки",
+        "Чемпион сезона",
+        "Серебро сезона",
+        "Бронза сезона",
+        "Tarkov",
+        "SQUAD",
+        "War Thunder",
+        "Minecraft"
     ],
-    "ignore_channel_ids": [],
-    "rejoin_window_minutes": 30,
-    "deploy_log_channel_id": 0
-  },
-  "twitch": {
-    "enabled": true,
-    "oauth": "",
-    "channel": "dendosicsh",
-    "channels": [
-      "dendosicsh",
-      "fl1pc"
-    ],
-    "prefix": "!",
-    "promo_message": "",
-    "promo_interval_seconds": 1800,
-    "live": {
-      "enabled": true,
-      "channel": "dendosicsh",
-      "channel_id": 1535055498020126750,
-      "poll_interval_minutes": 1,
-      "upcoming_lead_minutes": 10,
-      "prep_lead_minutes": 5,
-      "prep_user_id": 635370416252125184,
-      "prep_channel_id": 1535242059202691072,
-      "prestream_timer_minutes": 5,
-      "status_viewers": true,
-      "status_poll_seconds": 120,
-      "client_id": "",
-      "client_secret": "",
-      "ping_role_id": "1536723619366051901",
-      "sub_role_id": 0,
-      "eft_logs": {
+    "role_settings": {
+        "Master": {
+            "color": "#e74c3c",
+            "order": 1,
+            "permissions": []
+        },
+        "Veteran": {
+            "color": "#9b59b6",
+            "order": 2,
+            "permissions": []
+        },
+        "Raider": {
+            "color": "#e67e22",
+            "order": 3,
+            "permissions": []
+        },
+        "Regular": {
+            "color": "#3498db",
+            "order": 4,
+            "permissions": []
+        },
+        "Local": {
+            "color": "#2ecc71",
+            "order": 5,
+            "permissions": []
+        },
+        "Tourist": {
+            "color": "#f1c40f",
+            "order": 6,
+            "permissions": []
+        },
+        "Newcomer": {
+            "color": "#95a5a6",
+            "order": 7,
+            "permissions": []
+        },
+        "Стрим-оповещения": {
+            "color": "#7289da",
+            "order": 8,
+            "permissions": []
+        },
+        "Сборки": {
+            "color": "#f39c12",
+            "order": 9,
+            "permissions": []
+        },
+        "Сборщик": {
+            "color": "#00e5ff",
+            "order": 10,
+            "permissions": []
+        },
+        "СБЭУ шприц": {
+            "color": "#ff6b6b",
+            "order": 11,
+            "permissions": []
+        },
+        "Чемпион сезона": {
+            "color": "#ffd700",
+            "order": 12,
+            "permissions": []
+        },
+        "Серебро сезона": {
+            "color": "#c0c0c0",
+            "order": 13,
+            "permissions": []
+        },
+        "Бронза сезона": {
+            "color": "#cd7f32",
+            "order": 14,
+            "permissions": []
+        },
+        "Tarkov": {
+            "color": "#ad6242",
+            "order": 15,
+            "permissions": []
+        },
+        "SQUAD": {
+            "color": "#2ea2cc",
+            "order": 16,
+            "permissions": []
+        },
+        "War Thunder": {
+            "color": "#f8a800",
+            "order": 17,
+            "permissions": []
+        },
+        "Minecraft": {
+            "color": "#3faf46",
+            "order": 18,
+            "permissions": []
+        }
+    },
+    "season": {
         "enabled": true,
-        "log_dir": "D:\\EscapeFromTarkov\\fixer\\Logs",
-        "poll_seconds": 15
-      }
+        "reward_roles": [
+            "Чемпион сезона",
+            "Серебро сезона",
+            "Бронза сезона"
+        ],
+        "announce_channel_id": 1534711421026304132
     },
-    "discord_channel_id": 0,
-    "twitch_to_discord": false,
-    "discord_to_twitch": false,
-    "flush_interval": 2,
-    "commands": {
-      "prefix": "!",
-      "counters": [
-        "tod",
-        "add"
-      ],
-      "list": [
-        {
-          "name": "привет",
-          "text": "Привет, {user}! 👋",
-          "cooldown": 10
-        },
-        {
-          "name": "дс",
-          "text": "Заходи к нам в Discord!",
-          "cooldown": 5
-        },
-        {
-          "name": "донат",
-          "text": "Поддержи стрим: https://donatty.com/dendich",
-          "cooldown": 10
+    "overlay": {
+        "enabled": true,
+        "host": "127.0.0.1",
+        "port": 8765,
+        "token": "qwEr7TyUi2OpAsDfGhJkLzXcVbNm9QwEr",
+        "donation_goal": {
+            "enabled": false,
+            "target": 10000,
+            "currency": "₽",
+            "label": "Донат-цель"
         }
-      ],
-      "music": {
-        "songs": [
-          "Король и Шут - Лесник",
-          "Кино - Группа крови",
-          "Linkin Park - Numb",
-          "Imagine Dragons - Believer",
-          "Dota - Не упускай",
-          "Люмен - Гореть"
+    },
+    "whitelist_channels": [],
+    "exclude_roles": [],
+    "announce_channel_id": 0,
+    "log_channel_id": 1534711234673246300,
+    "ping_roles": [
+        "Owner"
+    ],
+    "welcome": {
+        "enabled": true,
+        "send_dm": true,
+        "welcome_channel_id": 1524743224319672452,
+        "welcome_channel_enabled": true,
+        "leave_channel_id": 1524743224319672452,
+        "leave_channel_enabled": true,
+        "title": "Добро пожаловать на дискорд сервер dendich!",
+        "intro": "Рады видеть тебя на нашем сервере! Мы играем в Escape from Tarkov, SQUAD, War Thunder и Minecraft — общаемся на счёт различных игр, смотрим стримы и играем вместе. Для начала прочитай правила в #правила и нажми там ✅ — это откроет тебе доступ к каналам #выдача-ролей и #уведомление-о-стримах.",
+        "channel_descriptions": {
+            "вход-в-коммунити": "Лента вступивших в Discord участников",
+            "правила": "Свод правил сервера — обязательно к прочтению",
+            "уведомление-о-стримах": "Анонсы стримов и напоминания об эфирах",
+            "общий": "Основное общение: обсуждение стримов, игры и всего на свете",
+            "общий-18": "Общение 18+: взрослые темы — будьте адекватны",
+            "оффтоп": "Всё, что не по теме: мемы из жизни, разговоры обо всём",
+            "мемы": "Скидывай лучшие мемы и забавные видео",
+            "сборки": "Обсуждение сборок, прокачки и снаряжения",
+            "предложить-сборку": "Предложи свою сборку или идею для канала",
+            "squad-chat": "Общение по SQUAD: тактика, составы и бои",
+            "squad-teams": "Подбор отряда и сёрч по SQUAD",
+            "wt-chat": "Общение по War Thunder: боты, экипаж и прокачка",
+            "wt-squadron": "Ищем экипаж и летим в бой",
+            "minecraft-chat": "Общение по Minecraft: выживание, фермы и базы",
+            "minecraft-builds": "Показывай свои постройки и схемы",
+            "спонсор-чат": "Закрытый чат для спонсоров и сборщиков"
+        },
+        "voice_descriptions": {
+            "➕ Создать канал": "Создай временный голосовой канал — нажми и назови его",
+            "Разговорный": "Голосовой канал для общения",
+            "Сбор рейда": "Голосовой канал для сбора на рейд"
+        },
+        "hidden_voice": [
+            "Спонсорский войс"
+        ],
+        "footer": "Приятного времяпрепровождения! 🔥"
+    },
+    "reaction_roles": {
+        "enabled": false,
+        "channel_id": 1534711255330328768,
+        "message": "**Выбери уведомления**\nНажми на реакцию, чтобы получить или снять роль:",
+        "roles": [
+            {
+                "emoji": "🔔",
+                "role": "Стрим-оповещения"
+            },
+            {
+                "emoji": "🛠",
+                "role": "Сборки"
+            }
         ]
-      }
     },
-    "moderation": {
-      "enabled": true,
-      "banned_words": [
-        "блядь",
-        "блять",
-        "бля",
-        "бляд",
-        "хуй",
-        "хуя",
-        "хуе",
-        "хуи",
-        "хуё",
-        "хуйня",
-        "нахуй",
-        "похуй",
-        "нахер",
-        "пизда",
-        "пиздец",
-        "пиздюк",
-        "пиздюль",
-        "пиздатый",
-        "заебал",
-        "заебала",
-        "ебать",
-        "ебал",
-        "ебаный",
-        "ёб",
-        "ебучий",
-        "еблан",
-        "ебланство",
-        "ебло",
-        "выблядок",
-        "уёбок",
-        "уебан",
-        "сука",
-        "сукин",
-        "сучка",
-        "гандон",
-        "мудак",
-        "мудила",
-        "шлюха",
-        "шлюшка",
-        "проститутка",
-        "пидор",
-        "пидрила",
-        "пидорок",
-        "гомик",
-        "педераст",
-        "ублюдок",
-        "мразь",
-        "тварь",
-        "залупа",
-        "хуесос",
-        "хуесо",
-        "отсоси",
-        "соси",
-        "жид",
-        "жиды",
-        "хач",
-        "чурка",
-        "чурки",
-        "нигер",
-        "ниггер",
-        "черномазый",
-        "хохол",
-        "москаль",
-        "кацап",
-        "nigger",
-        "nigga",
-        "faggot",
-        "fag",
-        "retard",
-        "rape",
-        "tranny",
-        "dyke",
-        "kike",
-        "kys",
-        "kill yourself",
-        "убейся",
-        "повесься",
-        "зарежься",
-        "пидорас",
-        "педик",
-        "петух",
-        "конча",
-        "куколд",
-        "даун",
-        "аутист",
-        "дебил",
-        "дегенерат",
-        "додик",
-        "лох",
-        "симп",
-        "инцел",
-        "девственник",
-        "ватник",
-        "сионист",
-        "цыган",
-        "1488",
-        "cunt",
-        "virgin",
-        "simp",
-        "incel",
-        "naga",
-        "нага",
-        "нига",
-        "dolbaeb",
-        "pidor",
-        "pidoras",
-        "pedik",
-        "debil",
-        "натурал",
-        "гей",
-        "вагина"
-      ],
-      "block_links": true,
-      "allowed_links": [
-        "twitch.tv"
-      ],
-      "caps_threshold": 0.75,
-      "caps_min_len": 10,
-      "message_cooldown": 2,
-      "max_messages_in_window": 3,
-      "duplicate_threshold": 3,
-      "history_size": 10,
-      "timeout_duration": 300,
-      "ban_after_timeouts": 3,
-      "announce_timeouts": true
+    "role_menu": {
+        "enabled": true,
+        "channel_id": 1534711255330328768,
+        "message": "**Уведомления и роли меню**",
+        "placeholder": "Выбери роли…",
+        "max_values": 10,
+        "roles": [
+            "Стрим-оповещения",
+            "Сборки",
+            "Tarkov",
+            "SQUAD",
+            "War Thunder",
+            "Minecraft"
+        ]
     },
-    "greetings": {
-      "welcome_new_chatters": true,
-      "welcome_message": "Добро пожаловать в чат, {user}! 🎉",
-      "welcome_cooldown": 300
-    }
-  },
-  "youtube": {
-    "enabled": true,
-    "channel": "Dendosich",
-    "client_id": "",
-    "client_secret": "",
-    "poll_seconds": 5,
-    "check_seconds": 30,
-    "discord_channel_id": 0,
-    "twitch_to_discord": true,
-    "flush_interval": 2,
-    "notify_channel_id": 0,
-    "analytics_channel_id": 0,
-    "ping_role_id": "1536723619366051901",
-    "upcoming_lead_minutes": 10,
-    "prep_lead_minutes": 5,
-    "screenshot_seconds": 600,
-    "screenshot_channel_id": 1535055498020126750,
-    "promo_message": "",
-    "promo_interval_seconds": 1800,
-    "status_poll_seconds": 120,
-    "commands": {
-      "prefix": "!",
-      "list": [
-        {
-          "name": "привет",
-          "text": "Привет, {user}! 👋",
-          "cooldown": 10
+    "rules_gate": {
+        "enabled": true,
+        "channel_id": 1524768657429893221,
+        "message_id": 1534751802514346146,
+        "emoji": "✅",
+        "role": "Ознакомлен"
+    },
+    "server_stats": {
+        "enabled": true,
+        "category": "СТАТИСТИКА",
+        "update_seconds": 300,
+        "channels": [
+            {
+                "name": "Участники",
+                "emoji": "👥",
+                "type": "members"
+            },
+            {
+                "name": "Онлайн",
+                "emoji": "🟢",
+                "type": "online"
+            }
+        ]
+    },
+    "discord_automod": {
+        "enabled": true,
+        "banned_words": [
+            "1488",
+            "нага",
+            "нига",
+            "nigger",
+            "nigga",
+            "заходи на",
+            "бесплатно",
+            "ссылка в описании",
+            "подпишись на"
+        ],
+        "block_links": true,
+        "allowed_links": [
+            "twitch.tv",
+            "youtube.com",
+            "youtu.be",
+            "discord.gg",
+            "discord.com",
+            "donatty.com",
+            "github.io"
+        ],
+        "caps_threshold": 0.8,
+        "caps_min_len": 12,
+        "message_cooldown": 2,
+        "max_messages_in_window": 5,
+        "timeout_duration": 300,
+        "ban_after_timeouts": 3,
+        "ignore_roles": [
+            "Owner",
+            "Moderator"
+        ],
+        "ignored_channels": []
+    },
+    "voice_xp": {
+        "enabled": true,
+        "interval_minutes": 5,
+        "skip_muted": true
+    },
+    "birthday": {
+        "enabled": true,
+        "channel_id": 1534711421026304132,
+        "announce_hour": 9,
+        "role_ping": ""
+    },
+    "socials": {
+        "discord": "https://discord.gg/rEDcPBuk6c",
+        "site": "https://danyacfx-source.github.io/dendich/",
+        "youtube": "https://www.youtube.com/@Dendosich",
+        "twitch": "https://www.twitch.tv/dendosicsh",
+        "donate": "https://donatty.com/dendich"
+    },
+    "temp_triggers": {
+        "1534748632270508192": "В рейд",
+        "1534748653888077995": "Обсуждения",
+        "1543056182640648294": "SQUAD",
+        "1543056185908011008": "War Thunder",
+        "1543056187476549853": "Minecraft"
+    },
+    "channels": {
+        "Tarkov": {
+            "type": "text",
+            "channels": [
+                "общий",
+                "оффтоп",
+                "мемы"
+            ]
         },
-        {
-          "name": "дс",
-          "text": "Заходи к нам в Discord! https://discord.gg/rEDcPBuk6c",
-          "cooldown": 5
+        "РЕЙДЫ": {
+            "type": "temp",
+            "create": "➕ Создать канал",
+            "prefix": "Сбор рейда"
         },
-        {
-          "name": "донат",
-          "text": "Поддержи стрим: https://donatty.com/dendich",
-          "cooldown": 10
+        "ГОЛОС": {
+            "type": "temp",
+            "create": "➕ Создать канал",
+            "prefix": "Разговорный"
         },
-        {
-          "name": "ссылки",
-          "text": "Все полезные ссылки: https://danyacfx-source.github.io/dendich/",
-          "cooldown": 10
+        "СПОНСОРЫ": {
+            "type": "sponsor",
+            "roles": [
+                "Сборщик",
+                "СБЭУ шприц"
+            ],
+            "text_channels": [
+                "спонсор-чат"
+            ],
+            "voice_channels": [
+                "Спонсорский войс"
+            ]
+        },
+        "SQUAD": {
+            "type": "text",
+            "channels": [
+                "squad-chat",
+                "squad-teams"
+            ],
+            "voice_channels": [
+                "➕ Создать канал"
+            ]
+        },
+        "War Thunder": {
+            "type": "text",
+            "channels": [
+                "wt-chat",
+                "wt-squadron"
+            ],
+            "voice_channels": [
+                "➕ Создать канал"
+            ]
+        },
+        "Minecraft": {
+            "type": "text",
+            "channels": [
+                "minecraft-chat",
+                "minecraft-builds"
+            ],
+            "voice_channels": [
+                "➕ Создать канал"
+            ]
+        },
+        "Для не определившихся": {
+            "type": "text",
+            "channels": [
+                "общий",
+                "общий-18"
+            ],
+            "voice_channels": [
+                "Общий 1",
+                "Общий 2"
+            ]
         }
-      ]
     },
-    "moderation": {
-      "enabled": true,
-      "banned_words": [
-        "блядь",
-        "блять",
-        "бля",
-        "хуй",
-        "хуя",
-        "хуе",
-        "хуи",
-        "хуйня",
-        "нахуй",
-        "похуй",
-        "нахер",
-        "пизда",
-        "пиздец",
-        "пиздюк",
-        "заебал",
-        "заебала",
-        "ебать",
-        "ебал",
-        "ебаный",
-        "ёб",
-        "ебучий",
-        "еблан",
-        "сука",
-        "сукин",
-        "сучка",
-        "гандон",
-        "мудак",
-        "мудила",
-        "шлюха",
-        "шлюшка",
-        "проститутка",
-        "пидор",
-        "пидрила",
-        "гомик",
-        "педераст",
-        "ублюдок",
-        "мразь",
-        "тварь",
-        "залупа",
-        "хуесос",
-        "нигер",
-        "ниггер",
-        "черномазый",
-        "nigger",
-        "nigga",
-        "faggot",
-        "retard",
-        "kys",
-        "kill yourself",
-        "убейся",
-        "повесься",
-        "зарежься",
-        "пидорас",
-        "педик",
-        "петух",
-        "даун",
-        "аутист",
-        "дебил",
-        "дегенерат",
-        "додик",
-        "лох",
-        "симп",
-        "инцел",
-        "1488",
-        "нага",
-        "нига"
-      ],
-      "block_links": true,
-      "allowed_links": [
-        "youtube.com",
-        "youtu.be",
-        "twitch.tv"
-      ],
-      "caps_threshold": 0.75,
-      "caps_min_len": 10,
-      "message_cooldown": 3,
-      "max_messages_in_window": 4,
-      "duplicate_threshold": 3,
-      "history_size": 10,
-      "ban_on_violation": true,
-      "ban_duration_seconds": 300
+    "permissions": {
+        "auto_apply": true,
+        "categories": {
+            "1534711415883956284": {
+                "name": "ЧАТЫ (Тарков)",
+                "rules": [
+                    {
+                        "role": "@everyone",
+                        "view_channel": false,
+                        "connect": false
+                    },
+                    {
+                        "role": "Tarkov",
+                        "view_channel": true,
+                        "send_messages": true,
+                        "read_message_history": true,
+                        "attach_files": true,
+                        "embed_links": true,
+                        "connect": true,
+                        "speak": true
+                    },
+                    {
+                        "role": "Moderator",
+                        "view_channel": true,
+                        "connect": true,
+                        "speak": true,
+                        "send_messages": true,
+                        "read_message_history": true
+                    },
+                    {
+                        "role": "Милый Килла",
+                        "view_channel": true
+                    }
+                ]
+            },
+            "1534711425933639762": {
+                "name": "Сборки (Тарков)",
+                "rules": [
+                    {
+                        "role": "@everyone",
+                        "view_channel": false,
+                        "connect": false
+                    },
+                    {
+                        "role": "Tarkov",
+                        "view_channel": true,
+                        "send_messages": true,
+                        "read_message_history": true,
+                        "attach_files": true,
+                        "embed_links": true
+                    },
+                    {
+                        "role": "Moderator",
+                        "view_channel": true,
+                        "send_messages": true,
+                        "read_message_history": true
+                    },
+                    {
+                        "role": "Милый Килла",
+                        "view_channel": true
+                    }
+                ]
+            },
+            "1534733986612645910": {
+                "name": "РЕЙДЫ (Тарков)",
+                "rules": [
+                    {
+                        "role": "@everyone",
+                        "view_channel": false,
+                        "connect": false
+                    },
+                    {
+                        "role": "Tarkov",
+                        "view_channel": true,
+                        "connect": true,
+                        "speak": true
+                    },
+                    {
+                        "role": "Moderator",
+                        "view_channel": true,
+                        "connect": true,
+                        "speak": true
+                    },
+                    {
+                        "role": "Милый Килла",
+                        "view_channel": true
+                    }
+                ]
+            },
+            "1543054695134666782": {
+                "name": "SQUAD",
+                "rules": [
+                    {
+                        "role": "@everyone",
+                        "view_channel": false,
+                        "connect": false
+                    },
+                    {
+                        "role": "SQUAD",
+                        "view_channel": true,
+                        "send_messages": true,
+                        "read_message_history": true,
+                        "attach_files": true,
+                        "embed_links": true,
+                        "connect": true,
+                        "speak": true
+                    },
+                    {
+                        "role": "Moderator",
+                        "view_channel": true,
+                        "connect": true,
+                        "speak": true,
+                        "send_messages": true,
+                        "read_message_history": true
+                    },
+                    {
+                        "role": "Милый Килла",
+                        "view_channel": true
+                    }
+                ]
+            },
+            "1543054704047693834": {
+                "name": "War Thunder",
+                "rules": [
+                    {
+                        "role": "@everyone",
+                        "view_channel": false,
+                        "connect": false
+                    },
+                    {
+                        "role": "War Thunder",
+                        "view_channel": true,
+                        "send_messages": true,
+                        "read_message_history": true,
+                        "attach_files": true,
+                        "embed_links": true,
+                        "connect": true,
+                        "speak": true
+                    },
+                    {
+                        "role": "Moderator",
+                        "view_channel": true,
+                        "connect": true,
+                        "speak": true,
+                        "send_messages": true,
+                        "read_message_history": true
+                    },
+                    {
+                        "role": "Милый Килла",
+                        "view_channel": true
+                    }
+                ]
+            },
+            "1543054712859918377": {
+                "name": "Minecraft",
+                "rules": [
+                    {
+                        "role": "@everyone",
+                        "view_channel": false,
+                        "connect": false
+                    },
+                    {
+                        "role": "Minecraft",
+                        "view_channel": true,
+                        "send_messages": true,
+                        "read_message_history": true,
+                        "attach_files": true,
+                        "embed_links": true,
+                        "connect": true,
+                        "speak": true
+                    },
+                    {
+                        "role": "Moderator",
+                        "view_channel": true,
+                        "connect": true,
+                        "speak": true,
+                        "send_messages": true,
+                        "read_message_history": true
+                    },
+                    {
+                        "role": "Милый Килла",
+                        "view_channel": true
+                    }
+                ]
+            }
+        }
     },
-    "refresh_token": "",
-    "comment_moderation": {
-      "enabled": true,
-      "check_seconds": 300,
-      "banned_words": [
-        "1488",
-        "нага",
-        "нига",
-        "nigger",
-        "nigga",
-        "реклама",
-        "заходи на",
-        "бесплатно",
-        "ссылка в описании",
-        "подпишись на"
-      ]
+    "ram_report": {
+        "enabled": true,
+        "channel_id": 1534720904221692005,
+        "interval_minutes": 30
     },
-    "growth_check_seconds": 600,
-    "cta_interval_minutes": 15
-  }
+    "guild_logs": {
+        "enabled": true,
+        "member_log_channel_id": 1543060997823139941,
+        "message_log_channel_id": 1543061000956153911,
+        "voice_log_channel_id": 1534711282748362803,
+        "mod_log_channel_id": 1543061004307538020,
+        "bot_log_channel_id": 1534711234673246300,
+        "startup_notify": true,
+        "ignore_bots": true,
+        "ignore_category_ids": [
+            1534711206605230120
+        ],
+        "ignore_channel_ids": [],
+        "rejoin_window_minutes": 30,
+        "deploy_log_channel_id": 0
+    },
+    "youtube": {
+        "enabled": true,
+        "channel": "Dendosich",
+        "client_id": "",
+        "client_secret": "",
+        "poll_seconds": 5,
+        "check_seconds": 30,
+        "discord_channel_id": 0,
+        "twitch_to_discord": true,
+        "flush_interval": 2,
+        "notify_channel_id": 0,
+        "analytics_channel_id": 0,
+        "ping_role_id": "1536723619366051901",
+        "upcoming_lead_minutes": 10,
+        "prep_lead_minutes": 5,
+        "screenshot_seconds": 600,
+        "screenshot_channel_id": 1535055498020126750,
+        "promo_message": "",
+        "promo_interval_seconds": 1800,
+        "status_poll_seconds": 120,
+        "commands": {
+            "prefix": "!",
+            "list": [
+                {
+                    "name": "привет",
+                    "text": "Привет, {user}! 👋",
+                    "cooldown": 10
+                },
+                {
+                    "name": "дс",
+                    "text": "Заходи к нам в Discord! https://discord.gg/rEDcPBuk6c",
+                    "cooldown": 5
+                },
+                {
+                    "name": "донат",
+                    "text": "Поддержи стрим: https://donatty.com/dendich",
+                    "cooldown": 10
+                },
+                {
+                    "name": "ссылки",
+                    "text": "Все полезные ссылки: https://danyacfx-source.github.io/dendich/",
+                    "cooldown": 10
+                }
+            ]
+        },
+        "moderation": {
+            "enabled": true,
+            "banned_words": [
+                "блядь",
+                "блять",
+                "бля",
+                "хуй",
+                "хуя",
+                "хуе",
+                "хуи",
+                "хуйня",
+                "нахуй",
+                "похуй",
+                "нахер",
+                "пизда",
+                "пиздец",
+                "пиздюк",
+                "заебал",
+                "заебала",
+                "ебать",
+                "ебал",
+                "ебаный",
+                "ёб",
+                "ебучий",
+                "еблан",
+                "сука",
+                "сукин",
+                "сучка",
+                "гандон",
+                "мудак",
+                "мудила",
+                "шлюха",
+                "шлюшка",
+                "проститутка",
+                "пидор",
+                "пидрила",
+                "гомик",
+                "педераст",
+                "ублюдок",
+                "мразь",
+                "тварь",
+                "залупа",
+                "хуесос",
+                "нигер",
+                "ниггер",
+                "черномазый",
+                "nigger",
+                "nigga",
+                "faggot",
+                "retard",
+                "kys",
+                "kill yourself",
+                "убейся",
+                "повесься",
+                "зарежься",
+                "пидорас",
+                "педик",
+                "петух",
+                "даун",
+                "аутист",
+                "дебил",
+                "дегенерат",
+                "додик",
+                "лох",
+                "симп",
+                "инцел",
+                "1488",
+                "нага",
+                "нига"
+            ],
+            "block_links": true,
+            "allowed_links": [
+                "youtube.com",
+                "youtu.be",
+                "twitch.tv"
+            ],
+            "caps_threshold": 0.75,
+            "caps_min_len": 10,
+            "message_cooldown": 3,
+            "max_messages_in_window": 4,
+            "duplicate_threshold": 3,
+            "history_size": 10,
+            "ban_on_violation": true,
+            "ban_duration_seconds": 300
+        },
+        "refresh_token": "",
+        "comment_moderation": {
+            "enabled": true,
+            "check_seconds": 300,
+            "banned_words": [
+                "1488",
+                "нага",
+                "нига",
+                "nigger",
+                "nigga",
+                "реклама",
+                "заходи на",
+                "бесплатно",
+                "ссылка в описании",
+                "подпишись на"
+            ]
+        },
+        "growth_check_seconds": 600,
+        "cta_interval_minutes": 15
+    },
+    "kick": {
+        "enabled": true,
+        "channel": "RUDendich",
+        "live": {
+            "enabled": true,
+            "channel_id": 1535055498020126750,
+            "ping_role_id": "1536723619366051901",
+            "poll_interval_seconds": 60,
+            "status_viewers": true,
+            "status_poll_seconds": 120,
+            "prestream_timer_minutes": 5,
+            "eft_logs": {
+                "enabled": true,
+                "log_dir": "D:\\EscapeFromTarkov\\fixer\\Logs",
+                "poll_seconds": 15
+            }
+        }
+    }
 }
