@@ -118,8 +118,8 @@ def _short_traceback(record: logging.LogRecord) -> str:
     if len(lines) > 12:
         lines = lines[:12] + ["  …"]
     result = "\n".join(lines)
-    if len(result) > 3800:
-        result = result[:3800] + "\n…"
+    if len(result) > 1000:
+        result = result[:1000] + "\n…"
     return result
 
 

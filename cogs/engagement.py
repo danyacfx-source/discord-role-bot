@@ -21,15 +21,27 @@ def _load_json(path):
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except Exception:
+            # Было: блок пустой — усечённые данные обнулялись без следов в журнале.
+            log.exception("Не удалось прочитать файл состояния %s", path)
             return {}
     return {}
 
 
 def _save_json(path, data):
+    """Атомарная запись состояния.
+
+    Раньше файл перезаписывался целиком без промежуточного файла и атомарной
+    подмены, а обработчик ошибки записи был пуст: прерывание в момент записи
+    оставляло усечённые данные, а нехватка места/прав оставалась невидимой
+    (дефект D17). Пишем во временный файл, затем атомарно подменяем.
+    """
     try:
-        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
     except Exception:
-        pass
+        log.exception("Не удалось сохранить файл состояния %s", path)
 
 
 class Engagement(commands.Cog):
@@ -42,6 +54,7 @@ class Engagement(commands.Cog):
         self._polls: dict = {}
         self._sub_cache: set[int] = set()
         self._started_role_sync = False
+        self._session = None
 
     def _save_loyalty(self):
         _save_json(LOYALTY_FILE, self.loyalty)
@@ -90,6 +103,12 @@ class Engagement(commands.Cog):
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         pass
 
+    def _get_session(self):
+        if self._session is None or self._session.closed:
+            timeout = aiohttp.ClientTimeout(total=15)
+            self._session = aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None)
+        return self._session
+
     async def _check_twitch_subs(self):
         cfg = CONFIG.get("twitch") or {}
         client_id = cfg.get("live", {}).get("client_id", "")
@@ -98,35 +117,34 @@ class Engagement(commands.Cog):
         if not client_id or not client_secret or not channel_name:
             return set()
         try:
-            timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
-                token_resp = await session.post("https://id.twitch.tv/oauth2/token", params={
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "grant_type": "client_credentials",
-                })
-                token_data = await token_resp.json()
-                app_token = token_data.get("access_token")
-                if not app_token:
-                    return set()
+            session = self._get_session()
+            token_resp = await session.post("https://id.twitch.tv/oauth2/token", params={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "grant_type": "client_credentials",
+            })
+            token_data = await token_resp.json()
+            app_token = token_data.get("access_token")
+            if not app_token:
+                return set()
 
-                users_resp = await session.get("https://api.twitch.tv/helix/users", params={
-                    "login": channel_name,
-                }, headers={"Client-Id": client_id, "Authorization": f"Bearer {app_token}"})
-                users_data = await users_resp.json()
-                broadcaster_id = (users_data.get("data") or [{}])[0].get("id")
-                if not broadcaster_id:
-                    return set()
+            users_resp = await session.get("https://api.twitch.tv/helix/users", params={
+                "login": channel_name,
+            }, headers={"Client-Id": client_id, "Authorization": f"Bearer {app_token}"})
+            users_data = await users_resp.json()
+            broadcaster_id = (users_data.get("data") or [{}])[0].get("id")
+            if not broadcaster_id:
+                return set()
 
-                subs_resp = await session.get("https://api.twitch.tv/helix/subscriptions", params={
-                    "broadcaster_id": broadcaster_id,
-                    "first": 100,
-                }, headers={"Client-Id": client_id, "Authorization": f"Bearer {app_token}"})
-                subs_data = await subs_resp.json()
-                sub_logins = set()
-                for s in subs_data.get("data", []):
-                    sub_logins.add(s.get("user_login", "").lower())
-                return sub_logins
+            subs_resp = await session.get("https://api.twitch.tv/helix/subscriptions", params={
+                "broadcaster_id": broadcaster_id,
+                "first": 100,
+            }, headers={"Client-Id": client_id, "Authorization": f"Bearer {app_token}"})
+            subs_data = await subs_resp.json()
+            sub_logins = set()
+            for s in subs_data.get("data", []):
+                sub_logins.add(s.get("user_login", "").lower())
+            return sub_logins
         except Exception:
             log.exception("Engagement: ошибка проверки подписчиков Twitch")
             return set()
@@ -176,6 +194,10 @@ class Engagement(commands.Cog):
             self._started_role_sync = True
             self.role_sync_loop.start()
 
+    async def cog_unload(self):
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+
 
 class TwitchChatGames(commands.Cog):
     """Minigames, polls, streaks in Twitch chat via twitchio."""
@@ -190,6 +212,13 @@ class TwitchChatGames(commands.Cog):
         now = time.time()
         if now - self._cooldowns.get(key, 0) < seconds:
             return False
+        # Дефект D07: кулдауны росли безгранично по каждому user:cmd.
+        # Вытесняем записи старше max_cd и ограничиваем общий объём.
+        if len(self._cooldowns) > 20000:
+            cutoff = now - max(seconds, 600)
+            stale = [k for k, t in self._cooldowns.items() if now - t > cutoff]
+            for k in stale:
+                self._cooldowns.pop(k, None)
         self._cooldowns[key] = now
         return True
 

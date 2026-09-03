@@ -1,7 +1,14 @@
 import logging
-import re
 import time
 from collections import defaultdict, deque
+
+from moderation_rules import (
+    check_caps,
+    check_links,
+    check_stretch,
+    match_banned_word,
+    normalized_allowed_links,
+)
 
 log = logging.getLogger("moderation")
 
@@ -10,11 +17,12 @@ class Moderation:
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
         self.banned = [w.lower() for w in self.config.get("banned_words", [])]
-        self.allowed_links = [d.lower().strip(".") for d in self.config.get("allowed_links", [])]
+        self.allowed_links = normalized_allowed_links(self.config)
         self._history = defaultdict(lambda: deque(maxlen=self.config.get("history_size", 10)))
         self._timestamps = defaultdict(list)
-        self._timeouts = defaultdict(int)
-        self._link_re = re.compile(r"(?:https?://|www\.)?([a-z0-9-]+\.[a-z]{2,})", re.IGNORECASE)
+        # Храним метки времени нарушений, чтобы порог накопления имел временнóе окно
+        # (дефект D21) и словарь не рос безгранично (дефект D07).
+        self._timeouts = defaultdict(list)
         self.ban_threshold = self.config.get("ban_after_timeouts", 3)
         self.channel = None
 
@@ -49,54 +57,48 @@ class Moderation:
         return False
 
     async def _check_links(self, message, content, user):
-        if not self.config.get("block_links", True):
-            return False
-        for match in self._link_re.finditer(content):
-            domain = match.group(1).lower()
-            if any(domain == d or domain.endswith("." + d) for d in self.allowed_links):
-                continue
+        host = check_links(content, self.allowed_links, block_links=self.config.get("block_links", True))
+        if host:
             await self._timeout(message, "ссылки", user)
             return True
         return False
 
     async def _check_words(self, message, content, user):
-        lowered = content.lower()
-        for word in self.banned:
-            if re.search(r"\b" + re.escape(word) + r"\b", lowered):
-                await self._timeout(message, "запрещённые слова", user)
-                return True
+        if match_banned_word(content, self.banned):
+            await self._timeout(message, "запрещённые слова", user)
+            return True
         return False
 
     async def _check_caps(self, message, content, user):
-        if len(content) < self.config.get("caps_min_len", 10):
-            return False
-        letters = [c for c in content if c.isalpha()]
-        if not letters:
-            return False
-        ratio = sum(c.isupper() for c in letters) / len(letters)
-        if ratio >= self.config.get("caps_threshold", 0.75):
+        if check_caps(
+            content,
+            threshold=self.config.get("caps_threshold", 0.75),
+            min_len=self.config.get("caps_min_len", 10),
+        ):
             await self._timeout(message, "капс", user)
             return True
         return False
 
     async def _check_stretch(self, message, content, user):
-        if len(content) < 8:
-            return False
-        prev = None
-        streak = 0
-        for ch in content:
-            if ch == prev:
-                streak += 1
-            else:
-                streak = 1
-                prev = ch
-            if streak >= 5:
-                await self._timeout(message, "растянутый спам", user)
-                return True
+        if check_stretch(content):
+            await self._timeout(message, "растянутый спам", user)
+            return True
         return False
 
     async def _check_spam(self, message, content, user, now):
         window = self.config.get("message_cooldown", 2)
+        # Ограничиваем размер общих словарей: вытесняем записи, неактивные дольше окна
+        # (дефекты D07/D21 — раньше _timestamps и _timeouts росли безгранично).
+        if len(self._timestamps) > 1000:
+            cutoff = now - 3600
+            stale = [u for u, ts in self._timestamps.items() if not ts or ts[-1] < cutoff]
+            for u in stale:
+                del self._timestamps[u]
+        if len(self._timeouts) > 1000:
+            cutoff = now - 3600
+            stale = [u for u, ts in self._timeouts.items() if not ts or ts[-1] < cutoff]
+            for u in stale:
+                del self._timeouts[u]
         stamps = [t for t in self._timestamps[user] if now - t <= window]
         stamps.append(now)
         self._timestamps[user] = stamps
@@ -114,9 +116,14 @@ class Moderation:
     async def _timeout(self, message, reason, user):
         duration = self.config.get("timeout_duration", 300)
         safe_reason = reason.replace(" ", "_")
-        self._timeouts[user] += 1
+        now = time.time()
+        window = self.config.get("ban_window_seconds", 1800)
+        stamps = self._timeouts[user]
+        while stamps and now - stamps[0] > window:
+            stamps.pop(0)
+        stamps.append(now)
         try:
-            if self._timeouts[user] >= self.ban_threshold:
+            if len(stamps) >= self.ban_threshold:
                 await message.channel.send(f"/ban {user} Повторные_нарушения_модерации")
                 if self.config.get("announce_timeouts", True):
                     await message.channel.send(

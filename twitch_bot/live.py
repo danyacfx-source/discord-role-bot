@@ -72,6 +72,13 @@ class StreamLiveNotifier:
             self._task.cancel()
             self._task = None
 
+    async def _get_session(self):
+        # Дефект D18: сессия создавалась на каждый запрос. Переиспользуем одну.
+        if self._session is None:
+            timeout = aiohttp.ClientTimeout(total=20)
+            self._session = aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None)
+        return self._session
+
     async def _run(self):
         channel_id = self.config.get("channel_id", 0)
         interval = max(1, self.config.get("poll_interval_minutes", 2)) * 60
@@ -379,12 +386,11 @@ class StreamLiveNotifier:
         )
         payload = {"query": query, "variables": {"login": channel}}
         try:
-            timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
-                async with session.post(
-                    "https://gql.twitch.tv/gql", headers=headers, json=payload
-                ) as resp:
-                    data = await resp.json()
+            session = await self._get_session()
+            async with session.post(
+                "https://gql.twitch.tv/gql", headers=headers, json=payload
+            ) as resp:
+                data = await resp.json()
             stream = (data.get("data") or {}).get("user") or {}
             stream = stream.get("stream")
             if not stream:
@@ -405,12 +411,11 @@ class StreamLiveNotifier:
         query = "query($id: ID!){channel(id: $id){schedule{nextSegment{startAt}}}}"
         payload = {"query": query, "variables": {"id": channel_id}}
         try:
-            timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
-                async with session.post(
-                    "https://gql.twitch.tv/gql", headers=headers, json=payload
-                ) as resp:
-                    data = await resp.json()
+            session = await self._get_session()
+            async with session.post(
+                "https://gql.twitch.tv/gql", headers=headers, json=payload
+            ) as resp:
+                data = await resp.json()
             segment = (data.get("data") or {}).get("channel") or {}
             segment = segment.get("schedule") or {}
             segment = segment.get("nextSegment") or {}
@@ -427,12 +432,11 @@ class StreamLiveNotifier:
         query = "query($login: String!){user(login: $login){id}}"
         payload = {"query": query, "variables": {"login": channel}}
         try:
-            timeout = aiohttp.ClientTimeout(total=15)
-            async with aiohttp.ClientSession(timeout=timeout, proxy=PROXY_URL or None) as session:
-                async with session.post(
-                    "https://gql.twitch.tv/gql", headers=headers, json=payload
-                ) as resp:
-                    data = await resp.json()
+            session = await self._get_session()
+            async with session.post(
+                "https://gql.twitch.tv/gql", headers=headers, json=payload
+            ) as resp:
+                data = await resp.json()
             user = (data.get("data") or {}).get("user") or {}
             return user.get("id")
         except Exception:

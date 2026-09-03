@@ -1,16 +1,52 @@
 import asyncio
+import json
 import logging
 import re
+import time
+from pathlib import Path
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from config import TEMP_CATS, TEMP_TRIGGERS
+from config import TEMP_CATS, TEMP_TRIGGERS, DATA_DIR
 
 temp_channel_owners: dict[int, int] = {}
 trigger_channel_ids: set[int] = set()
 temp_category_ids: set[int] = set()
+
+_OWNERS_FILE = DATA_DIR / "temp_channel_owners.json"
+_owners_loaded = False
+
+
+def _load_owners():
+    """Восстанавливает владельцев временных каналов из файла.
+
+    Владение каналами не переживало перезапуск: после старта владельцем
+    назначался первый попавшийся участник, а фактический создатель терял права
+    (дефект D20).
+    """
+    global _owners_loaded
+    if _owners_loaded:
+        return
+    _owners_loaded = True
+    try:
+        if _OWNERS_FILE.exists():
+            data = json.loads(_OWNERS_FILE.read_text(encoding="utf-8"))
+            for vc_id, owner in data.items():
+                temp_channel_owners[int(vc_id)] = int(owner)
+    except Exception:
+        logging.exception("TempVoice: не удалось прочитать владельцев каналов")
+
+
+def _save_owners():
+    try:
+        _OWNERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _OWNERS_FILE.with_suffix(_OWNERS_FILE.suffix + ".tmp")
+        tmp.write_text(json.dumps(temp_channel_owners), encoding="utf-8")
+        tmp.replace(_OWNERS_FILE)
+    except Exception:
+        logging.exception("TempVoice: не удалось сохранить владельцев каналов")
 
 _channel_locks: dict[int, asyncio.Lock] = {}
 
@@ -20,6 +56,11 @@ def _channel_lock(channel_id: int) -> asyncio.Lock:
     if lock is None:
         lock = asyncio.Lock()
         _channel_locks[channel_id] = lock
+        # Ограничиваем рост: лок хранится на каждый когда-либо созданный канал
+        # (дефект D07). Когда каналов накопилось много — вытесняем половину LIFO.
+        if len(_channel_locks) > 512:
+            for cid in list(_channel_locks.keys())[: len(_channel_locks) // 2]:
+                _channel_locks.pop(cid, None)
     return lock
 
 
@@ -182,14 +223,12 @@ class TempChannelView(discord.ui.View):
         if is_locked:
             current.connect = None
             await vc.set_overwrite(everyone, overwrite=current, reason="Канал открыт")
-            button.label = "🔒 Закрыть"
-            await interaction.response.edit_message(view=self)
+            await interaction.response.edit_message()
             await interaction.followup.send("✅ Канал открыт.", ephemeral=True)
         else:
             current.connect = False
             await vc.set_overwrite(everyone, overwrite=current, reason="Канал закрыт")
-            button.label = "🔓 Открыть"
-            await interaction.response.edit_message(view=self)
+            await interaction.response.edit_message()
             await interaction.followup.send("✅ Канал закрыт.", ephemeral=True)
 
     @discord.ui.button(label="👢 Выгнать", style=discord.ButtonStyle.secondary, custom_id="temp_vc_kick")
@@ -259,6 +298,9 @@ class TempVoice(commands.Cog):
         if not self._started_cleanup:
             self._started_cleanup = True
             self.cleanup_empty_channels.start()
+        # Восстанавливаем сохранённых владельцев, чтобы создатель канала не терял
+        # права после перезапуска (дефект D20).
+        _load_owners()
         try:
             for guild in self.bot.guilds:
                 for cat_name in TEMP_CATS:
@@ -289,7 +331,10 @@ class TempVoice(commands.Cog):
                             except Exception as e:
                                 logging.error("Ошибка очистки временного канала %s: %s", vc.name, e)
                     elif vc.id not in temp_channel_owners:
+                        # Попали сюда, только если на этот канал не было сохранённого
+                        # владельца (или его воссоздали) — назначаем первого участника.
                         temp_channel_owners[vc.id] = humans[0].id
+                        _save_owners()
                         logging.info("Восстановлен владелец канала %s теперь %s", vc.name, humans[0])
         except Exception as e:
             logging.error("Ошибка очистки временных каналов: %s", e)
@@ -313,6 +358,7 @@ class TempVoice(commands.Cog):
                     reason="Временный канал",
                 )
                 temp_channel_owners[vc.id] = member.id
+                _save_owners()
                 moved = False
                 for m in list(after.channel.members):
                     if m.bot:
@@ -351,6 +397,7 @@ class TempVoice(commands.Cog):
                 ):
                     new_owner = remaining[0]
                     temp_channel_owners[vc.id] = new_owner.id
+                    _save_owners()
                     logging.info("Владелец канала %s теперь %s", vc.name, new_owner)
                     embed = discord.Embed(
                         title="👑 Права канала переданы",

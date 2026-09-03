@@ -149,7 +149,7 @@ def step5_auth(client_id, client_secret):
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
         "response_type": "code",
-        "scope": "https://www.googleapis.com/auth/youtube",
+        "scope": "https://www.googleapis.com/auth/youtube.force-ssl",
         "access_type": "offline",
         "prompt": "consent",
         "state": _oauth_state,

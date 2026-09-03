@@ -97,6 +97,9 @@ class YouTubeChatClient:
         self.discord_bot = discord_bot
         self.loop = loop
         self.channel_handle = config.get("channel", "Dendosich")
+        # Рекомендованный интервал опроса, возвращаемый API в pollingIntervalMillis
+        # (дефект D14): используем его, чтобы не превышать суточную квоту.
+        self._polling_interval = None
         self.poll_interval = config.get("poll_seconds", 5)
         self.check_interval = config.get("check_seconds", 30)
         self._running = False
@@ -191,7 +194,8 @@ class YouTubeChatClient:
                     await self._resolve_live_chat_id()
 
                 await self._poll_messages()
-                await asyncio.sleep(self.poll_interval)
+                interval = (self._polling_interval or self.poll_interval) or 5
+                await asyncio.sleep(interval)
 
                 if self._video_id:
                     await self._check_live()
@@ -211,6 +215,9 @@ class YouTubeChatClient:
             "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.7",
         }
         async with self._session.get(url, headers=headers) as resp:
+            if resp.status != 200:
+                log.debug("YouTube: страница %s вернула HTTP %s", url, resp.status)
+                return ""
             return await resp.text()
 
     async def _check_live(self):
@@ -698,6 +705,11 @@ class YouTubeChatClient:
         last = self._cmd_cooldowns.get(name, 0)
         if now - last < cooldown:
             return
+        # Дефект D07: кулдауны команд росли безгранично по имени команды.
+        if len(self._cmd_cooldowns) > 10000:
+            cutoff = now - max(cooldown, 600)
+            for k in [k for k, t in self._cmd_cooldowns.items() if now - t > cutoff]:
+                self._cmd_cooldowns.pop(k, None)
         self._cmd_cooldowns[name] = now
 
         response = cmd.get("text", "")
@@ -756,6 +768,8 @@ class YouTubeChatClient:
             return
 
         self._page_token = data.get("nextPageToken")
+        if data.get("pollingIntervalMillis"):
+            self._polling_interval = max(1, int(data["pollingIntervalMillis"]) / 1000)
         self._save_chat_state()
 
         items = data.get("items", [])

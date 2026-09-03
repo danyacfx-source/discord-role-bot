@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sys
 
@@ -38,8 +39,10 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     handlers=[
-        logging.FileHandler(
+        RotatingFileHandler(
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot.log"),
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
             encoding="utf-8",
         ),
         logging.StreamHandler(),
@@ -143,21 +146,43 @@ async def main():
 
 
 def _acquire_single_instance_mutex() -> bool:
-    try:
-        import ctypes
+    """Cross-platform guard against a second bot instance.
 
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        handle = kernel.CreateMutexW(None, False, "DendichRoleBotMutex")
-        if ctypes.get_last_error() == 183:
-            kernel.CloseHandle(handle)
-            return False
-        if not handle:
-            return False
-        _acquire_single_instance_mutex.handle = handle
+    Раньше использовался ctypes.WinDLL('kernel32') — механизм работал только в
+    Windows, а в блоке except возвращал True, т.е. на любой другой ОС (включая
+    контейнерное развёртывание) параллельный запуск разрешался, что приводило
+    к двойному начислению и дублированию уведомлений. Вместо этого удерживаем
+    эксклюзивную блокировку файла: fcntl (POSIX) или msvcrt (Windows).
+    """
+    platform_lock = getattr(_acquire_single_instance_mutex, "_lock_handle", None)
+    if platform_lock is not None:
         return True
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            fh = open(os.devnull, "a")
+            try:
+                msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            except OSError:
+                fh.close()
+                return False
+            _acquire_single_instance_mutex._lock_handle = fh
+            return True
+        else:
+            import fcntl
+
+            fh = open(os.devnull, "a")
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                fh.close()
+                return False
+            _acquire_single_instance_mutex._lock_handle = fh
+            return True
     except Exception:
-        logging.warning("Не удалось создать mutex одиночного инстанса")
-        return True
+        logging.exception("Сбой блокировки одиночного инстанса — запуск запрещён.")
+        return False
 
 
 if __name__ == "__main__":

@@ -260,7 +260,11 @@ class Overlay(commands.Cog):
         self.bot = bot
         self._runner = None
         self._site = None
-        self._auth_token = OVERLAY.get("token") or secrets.token_urlsafe(32)
+        # Токен берём из переменной окружения, а не из config.json: конфиг
+        # версионируется, и хранение секрета в нём даёт полный доступ к API
+        # оверлея (чат обеих платформ) любому, у кого есть репозиторий.
+        self._auth_token = os.environ.get("OVERLAY_TOKEN") or secrets.token_urlsafe(32)
+        self._public_pages = True
 
     async def _get_live(self):
         try:
@@ -301,8 +305,7 @@ class Overlay(commands.Cog):
         return {"live": False, "viewers": 0, "title": None, "next": next_text}
 
     async def _api(self, request):
-        token = request.headers.get("X-Overlay-Token") or request.query.get("token")
-        if not secrets.compare_digest(token or "", self._auth_token):
+        if not self._valid_auth(request):
             return web.json_response({"error": "unauthorized"}, status=401)
         state = overlay_state.get_state()
         raid = raid_state()
@@ -332,6 +335,8 @@ class Overlay(commands.Cog):
         return web.json_response(payload)
 
     async def _page(self, request):
+        if not self._public_pages and not self._valid_auth(request):
+            return web.json_response({"error": "unauthorized"}, status=401)
         prestream_min = (CONFIG.get("twitch") or {}).get("live") or {}
         prestream_min = prestream_min.get("prestream_timer_minutes", 5)
         html = PAGE.replace("__PRESTREAM_MINUTES__", str(prestream_min))
@@ -339,12 +344,17 @@ class Overlay(commands.Cog):
         return web.Response(text=html, content_type="text/html")
 
     async def _chat_page(self, request):
+        if not self._public_pages and not self._valid_auth(request):
+            return web.json_response({"error": "unauthorized"}, status=401)
         html = POPUP_CHAT_PAGE.replace("__OVERLAY_TOKEN__", self._auth_token)
         return web.Response(text=html, content_type="text/html")
 
-    async def _chat_api(self, request):
+    def _valid_auth(self, request) -> bool:
         token = request.headers.get("X-Overlay-Token") or request.query.get("token")
-        if not secrets.compare_digest(token or "", self._auth_token):
+        return secrets.compare_digest(token or "", self._auth_token)
+
+    async def _chat_api(self, request):
+        if not self._valid_auth(request):
             return web.json_response({"error": "unauthorized"}, status=401)
         payload = {
             "messages": [
@@ -375,6 +385,9 @@ class Overlay(commands.Cog):
         self._runner = web.AppRunner(app)
         await self._runner.setup()
         host = os.environ.get("OVERLAY_HOST") or OVERLAY.get("host", "127.0.0.1")
+        # Если сервер выведен не на loopback, страницы, содержащие токен, требуют
+        # аутентификации — иначе токен можно извлечь из исходного кода страницы.
+        self._public_pages = host in ("127.0.0.1", "localhost", "::1")
         port = int(os.environ.get("OVERLAY_PORT") or OVERLAY.get("port", 8765))
         try:
             self._site = web.TCPSite(self._runner, host, port)

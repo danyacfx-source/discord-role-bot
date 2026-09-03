@@ -12,6 +12,7 @@ from discord.ext import commands
 from db import (
     giveaway_set_participants,
     giveaway_save,
+    giveaway_next_id,
     giveaways_find_by_message,
     giveaways_load_active,
 )
@@ -53,15 +54,16 @@ class GiveawayView(discord.ui.View):
                 )
                 return
 
-        if uid in ga["participants"]:
-            ga["participants"].discard(uid)
-            await interaction.response.send_message("Ты покинул розыгрыш.", ephemeral=True)
-        else:
-            ga["participants"].add(uid)
-            await interaction.response.send_message(
-                f"Ты участвуешь! ({len(ga['participants'])} участ.)", ephemeral=True
-            )
-        await self._persist(cog, ga)
+        async with cog._participants_lock:
+            if uid in ga["participants"]:
+                ga["participants"].discard(uid)
+                await interaction.response.send_message("Ты покинул розыгрыш.", ephemeral=True)
+            else:
+                ga["participants"].add(uid)
+                await interaction.response.send_message(
+                    f"Ты участвуешь! ({len(ga['participants'])} участ.)", ephemeral=True
+                )
+            await self._persist(cog, ga)
         try:
             await interaction.message.edit(embed=cog._build_embed(ga))
         except Exception:
@@ -85,12 +87,23 @@ class Giveaways(commands.Cog):
         self.active: dict[int, dict] = {}
         self._next_id = 1
         self._started = False
+        # Только когда кнопку нажимают несколько раз одновременно, изменение
+        # участников сериализуется блокировкой, иначе возможны гонки при
+        # чтении/записи множества участников (дефект D24).
+        self._participants_lock = asyncio.Lock()
+        # Храним ссылки на фоновые задачи завершения розыгрышей, иначе сборщик
+        # мусора может удалить их до срабатывания (дефект D08).
+        self._tasks: set[asyncio.Task] = set()
 
     @commands.Cog.listener()
     async def on_ready(self):
         if self._started:
             return
         self._started = True
+        # Счётчик ID берём из БД, а не только из активных розыгрышей — иначе
+        # после перезапуска без активных он сбросится в 1 и перезапишет историю
+        # завершённых розыгрышей (дефект D08).
+        self._next_id = giveaway_next_id() + 1
         for ga in giveaways_load_active():
             ga_id = ga["id"]
             self._next_id = max(self._next_id, ga_id + 1)
@@ -100,8 +113,13 @@ class Giveaways(commands.Cog):
                 ga["participants"] = set()
             self.active[ga_id] = ga
             self.bot.add_view(GiveawayView(ga_id))
-            asyncio.create_task(self._finish_giveaway(ga_id))
+            self._spawn_finish(ga_id)
             log.info("Giveaway: восстановлен розыгрыш #%s («%s»)", ga_id, ga["prize"])
+
+    def _spawn_finish(self, ga_id: int):
+        task = asyncio.create_task(self._finish_giveaway(ga_id))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     def _build_embed(self, ga: dict) -> discord.Embed:
         remaining = max(0, int(ga["end_time"] - time.time()))
@@ -178,7 +196,7 @@ class Giveaways(commands.Cog):
         ga["participants_json"] = json.dumps([])
         await asyncio.get_running_loop().run_in_executor(None, giveaway_save, dict(ga))
 
-        asyncio.create_task(self._finish_giveaway(ga_id))
+        self._spawn_finish(ga_id)
 
     @app_commands.command(name="reroll", description="Перевыбрать победителя розыгрыша (только для админов)")
     @app_commands.default_permissions(administrator=True)

@@ -23,6 +23,20 @@ def _trunc(text: str, limit: int) -> str:
     return text
 
 
+def _code(text: str, limit: int) -> str:
+    """Заключает пользовательский текст в code-блок безопасно.
+
+    Пользовательский текст может содержать тройные бэктики ``` — они закрыли бы
+    code-блок и позволили дописать произвольное оформление записи журнала
+    (дефект D10). Заменяем их, чтобы нельзя было выйти из блока.
+    """
+    text = (text or "").strip() or "∅"
+    text = text.replace("```", "‛‛‛")
+    if len(text) > limit:
+        text = text[: limit - 1] + "…"
+    return text
+
+
 class GuildLogs(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -33,6 +47,17 @@ class GuildLogs(commands.Cog):
         self._startup_posted = False
         self._ready_at = None
         self._last_log_send = 0.0
+        # Сериализуем отправку логов: раньше каждая задача читала общую отметку
+        # времени и по истечении паузы била по API одновременно (дефект D12).
+        self._send_lock = asyncio.Lock()
+
+    async def _send(self, ch, embed):
+        async with self._send_lock:
+            wait = 0.8 - (time.monotonic() - self._last_log_send)
+            if wait > 0:
+                await asyncio.sleep(wait)
+            await ch.send(embed=embed)
+            self._last_log_send = time.monotonic()
 
     def _cid(self, key: str) -> int:
         return self.cfg.get(key, 0)
@@ -219,7 +244,7 @@ class GuildLogs(commands.Cog):
         self._messages[message.id] = {
             "author_id": message.author.id,
             "author": message.author.display_name,
-            "channel": message.channel,
+            "channel_id": message.channel.id,
             "content": message.content or "",
             "attachments": len(message.attachments),
             "created": message.created_at,
@@ -246,9 +271,10 @@ class GuildLogs(commands.Cog):
         if snap:
             embed.set_author(name=snap["author"], icon_url=(getattr(message.author, "display_avatar", None) or discord.utils.MISSING).url if getattr(message.author, "display_avatar", None) else discord.utils.MISSING)
             embed.add_field(name="Автор", value=f"<@{snap['author_id']}>", inline=True)
-            embed.add_field(name="Канал", value=snap["channel"].mention, inline=True)
+            ch_obj = self.bot.get_channel(snap["channel_id"])
+            embed.add_field(name="Канал", value=ch_obj.mention if ch_obj else f"`{snap['channel_id']}`", inline=True)
             embed.add_field(name="Вложений", value=str(snap["attachments"]), inline=True)
-            embed.add_field(name="Содержимое", value=f"```\n{_trunc(snap['content'], 1000)}\n```", inline=False)
+            embed.add_field(name="Содержимое", value=f"```\n{_code(snap['content'], 1000)}\n```", inline=False)
         else:
             uname = getattr(author, "display_name", "?")
             uid = getattr(author, "id", "?")
@@ -257,7 +283,7 @@ class GuildLogs(commands.Cog):
             embed.add_field(name="Канал", value=message.channel.mention, inline=True)
             embed.add_field(name="Содержимое", value="Не закешировано", inline=False)
         try:
-            await ch.send(embed=embed)
+            await self._send(ch, embed)
         except Exception:
             log.exception("Ошибка лога удаления")
 
@@ -291,10 +317,10 @@ class GuildLogs(commands.Cog):
         embed.add_field(name="Канал", value=after.channel.mention, inline=True)
         if after.jump_url:
             embed.add_field(name="Перейти", value=f"[Открыть]({after.jump_url})", inline=True)
-        embed.add_field(name="Было", value=f"```\n{_trunc(old, 900)}\n```", inline=False)
-        embed.add_field(name="Стало", value=f"```\n{_trunc(new, 900)}\n```", inline=False)
+        embed.add_field(name="Было", value=f"```\n{_code(old, 900)}\n```", inline=False)
+        embed.add_field(name="Стало", value=f"```\n{_code(new, 900)}\n```", inline=False)
         try:
-            await ch.send(embed=embed)
+            await self._send(ch, embed)
         except Exception:
             log.exception("Ошибка лога изменения")
 
@@ -335,12 +361,8 @@ class GuildLogs(commands.Cog):
         embed.add_field(name="Канал", value=f"`{name}` (`{cid}`)", inline=True)
         if b is not None and a is not None and b is not a:
             embed.add_field(name="Было", value=f"`{b.name}`", inline=True)
-        wait = 0.8 - (time.monotonic() - self._last_log_send)
-        if wait > 0:
-            await asyncio.sleep(wait)
         try:
-            await ch.send(embed=embed)
-            self._last_log_send = time.monotonic()
+            await self._send(ch, embed)
         except Exception:
             log.exception("Ошибка лога голосового канала")
 
@@ -372,9 +394,9 @@ class GuildLogs(commands.Cog):
         if reason:
             embed.add_field(name="Причина", value=_trunc(reason, 400), inline=False)
         if content:
-            embed.add_field(name="Сообщение", value=f"```\n{_trunc(content, 900)}\n```", inline=False)
+            embed.add_field(name="Сообщение", value=f"```\n{_code(content, 900)}\n```", inline=False)
         try:
-            await ch.send(embed=embed)
+            await self._send(ch, embed)
         except Exception:
             log.exception("Ошибка лога модерации")
 

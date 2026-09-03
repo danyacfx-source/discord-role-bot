@@ -55,15 +55,31 @@ class Setup(commands.Cog):
                 except ValueError:
                     reports.append(f"❌ **{name}** — неверный цвет")
                     continue
-            perms = spec.get("permissions") or []
-            if perms:
+            perms = spec.get("permissions")
+            if perms is not None:
                 base = discord.Permissions(role.permissions.value)
+                # Дефект D22: раньше в конфиге права только включались, а лишние
+                # никогда не отзывались. Поддерживаем явный отзыв (False/0) и
+                # считаем "permissions" точной маской для перечисленных флагов.
                 for p in perms:
-                    if hasattr(base, p):
-                        setattr(base, p, True)
+                    if not isinstance(p, dict):
+                        if hasattr(base, p):
+                            setattr(base, p, True)
+                        continue
+                    name, enabled = p.get("name"), p.get("allowed", True)
+                    if name and hasattr(base, name):
+                        setattr(base, name, bool(enabled))
                 kwargs["permissions"] = base
-            if position >= 1:
+            # Валидация позиции: роль не может быть выше роли бота или ниже everyone.
+            if position >= bot_top.position:
+                reports.append(f"❌ **{name}** — позиция выше/равна роли бота, пропуск")
+                continue
+            if position > 1:
                 kwargs["position"] = position
+            if spec.get("hoist"):
+                kwargs["hoist"] = bool(spec.get("hoist"))
+            if spec.get("mentionable") is not None:
+                kwargs["mentionable"] = bool(spec.get("mentionable"))
             try:
                 await role.edit(reason="Настройка ролей из конфига", **kwargs)
                 reports.append(f"✅ **{name}** — цвет и позиция {position}")
@@ -173,14 +189,23 @@ class Setup(commands.Cog):
             wanted_text = {_norm(n) for n in text_names}
             wanted_voice = {_norm(n) for n in voice_names}
 
+            # Не удаляем каналы автоматически: совпадение нормализованных имён
+            # (нижний регистр с дефисами) может безвозвратно уничтожить канал
+            # вместе с историей переписки. Только диагностируем возможный конфликт.
             for ch in list(category.text_channels):
                 if _norm(ch.name) in wanted_voice:
-                    await ch.delete(reason="Лишний текстовый канал в войс-категории")
-                    created.append(f"Удалён # {ch.name}")
+                    log.warning(
+                        "Setup: текстовый канал #%s совпадает по нормализованному имени "
+                        "с ожидаемым войс-каналом — пропущен, удаление отключено",
+                        ch.name,
+                    )
             for ch in list(category.voice_channels):
                 if _norm(ch.name) in wanted_text:
-                    await ch.delete(reason="Лишний войс-канал в текстовой категории")
-                    created.append(f"Удалён 🔊 {ch.name}")
+                    log.warning(
+                        "Setup: войс-канал 🔊%s совпадает по нормализованному имени "
+                        "с ожидаемым текстовым каналом — пропущен, удаление отключено",
+                        ch.name,
+                    )
 
             for name in text_names:
                 ch = find_channel(category.text_channels, name)

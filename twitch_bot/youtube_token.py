@@ -43,11 +43,21 @@ class YouTubeTokenManager:
                 "grant_type": "refresh_token",
             }) as resp:
                 data = await resp.json()
+                if resp.status >= 400:
+                    log.warning(
+                        "YouTubeToken: refresh HTTP %s: %s",
+                        resp.status, data.get("error_description") or data.get("error"),
+                    )
+                    self._access_token = None
+                    self._expires_at = 0
+                    return None
                 if "access_token" in data:
                     self._access_token = data["access_token"]
                     self._expires_at = time.time() + data.get("expires_in", 3600) - 120
                     return self._access_token
                 log.warning("YouTubeToken: refresh failed: %s", data.get("error_description"))
+                self._access_token = None
+                self._expires_at = 0
         except Exception:
             log.exception("YouTubeToken: refresh error")
         return None
@@ -62,18 +72,44 @@ class YouTubeTokenManager:
         try:
             if method == "GET":
                 async with session.get(url, headers=headers, **kwargs) as resp:
-                    return await resp.json()
+                    return await self._handle(resp, endpoint)
             elif method == "POST":
                 async with session.post(url, headers=headers, **kwargs) as resp:
-                    return await resp.json()
+                    return await self._handle(resp, endpoint)
             elif method == "DELETE":
                 async with session.delete(url, headers=headers, **kwargs) as resp:
                     if resp.status == 204:
                         return {"status": "ok"}
-                    return await resp.json()
+                    return await self._handle(resp, endpoint)
         except Exception:
             log.exception("YouTubeToken: API error %s %s", method, endpoint)
             return None
+
+    async def _handle(self, resp, endpoint: str) -> dict | None:
+        """Проверяет код состояния ответа YouTube API.
+
+        Раньше коды не проверялись: 401 (просроченный токен) возвращался
+        вызывающему коду как штатный ответ, а кешированный токен не
+        инвалидировался; исчерпание квоты 429 не переводило клиент в режим
+        отложенных повторов (дефект D13).
+        """
+        if resp.status == 401:
+            # Токен недействителен — сбрасываем кеш, следующий вызов перевыпустит.
+            self._access_token = None
+            self._expires_at = 0
+            log.warning("YouTubeToken: 401 на %s — токен инвалидирован", endpoint)
+            return None
+        if resp.status == 429:
+            log.warning("YouTubeToken: 429 quota exhausted на %s", endpoint)
+            return None
+        if resp.status >= 400:
+            log.warning("YouTubeToken: HTTP %s на %s", resp.status, endpoint)
+            return None
+        data = await resp.json()
+        if data and "error" in data:
+            log.warning("YouTubeToken: API error на %s: %s", endpoint, data["error"])
+            return None
+        return data
 
 
 def get_token_manager() -> YouTubeTokenManager:

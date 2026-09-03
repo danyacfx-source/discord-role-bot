@@ -66,20 +66,54 @@ def _init_db():
         conn.execute(
             "UPDATE members SET xp = points * 20 WHERE xp = 0 AND points > 0"
         )
-        conn.commit()
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_members_guild_points ON members (guild_id, points DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_season_members_guild_points ON season_members (guild_id, points DESC)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_counters_channel ON counters (channel)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways (status)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_giveaways_message ON giveaways (message_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_giveaways_end ON giveaways (end_time)"
+    )
+    conn.commit()
     conn.close()
 
 
 _init_db()
 
 
+import threading
+
+_bind_conn: "sqlite3.Connection | None" = None
+_bind_lock = threading.Lock()
+
+
 @contextmanager
 def _connect():
-    conn = sqlite3.connect(str(DB_PATH), timeout=10)
-    try:
-        yield conn
-    finally:
-        conn.close()
+    """Общее соединение с БД вместо нового на каждую операцию.
+
+    Раньше каждая операция открывала и закрывала отдельное соединение, а вызовы
+    из корутин блокировали цикл событий. Теперь используем одно постоянное
+    соединение (не пересоздаём его на каждую операцию) и ограничиваем доступ
+    блокировкой. Записи внутри блока вызывают conn.commit() явно.
+    """
+    global _bind_conn
+    with _bind_lock:
+        if _bind_conn is None:
+            conn = sqlite3.connect(str(DB_PATH), timeout=10, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=10000")
+            _bind_conn = conn
+        yield _bind_conn
 
 
 def add_message(guild_id: int, user_id: int) -> tuple[int, int]:
@@ -322,6 +356,19 @@ def giveaways_find_by_message(message_id: int) -> dict | None:
         "participants": row[11],
         "status": row[12],
     }
+
+
+def giveaway_next_id() -> int:
+    """Текущий максимум id розыгрышей в БД.
+
+    Раньше счётчик хранился только в памяти и восстанавливался по активным
+    розыгрышам — после перезапуска без активных он сбрасывался в 1, а upsert по
+    primary key затирал историю завершённых розыгрышей. Теперь счётчик читается
+    из БД, поэтому коллизий id не бывает.
+    """
+    with _connect() as conn:
+        row = conn.execute("SELECT COALESCE(MAX(id), 0) FROM giveaways").fetchone()
+        return int(row[0]) if row else 0
 
 
 def giveaway_set_participants(giveaway_id: int, participants: list[int], status: str = "active") -> None:

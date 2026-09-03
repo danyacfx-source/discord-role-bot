@@ -30,6 +30,19 @@ class CommandHandler:
     def _is_staff(self, author):
         return author.is_mod or author.is_broadcaster
 
+    def _ratelimit(self, key, seconds):
+        """Проверяет кулдаун и ограничивает рост словаря (дефект D07)."""
+        now = time.time()
+        last = self._cooldowns.get(key, 0)
+        if now - last < seconds:
+            return False
+        if len(self._cooldowns) > 20000:
+            cutoff = now - max(seconds, 600)
+            for k in [k for k, t in self._cooldowns.items() if now - t > cutoff]:
+                self._cooldowns.pop(k, None)
+        self._cooldowns[key] = now
+        return True
+
     async def handle(self, message):
         content = (message.content or "").strip()
         if not content.startswith(self.prefix):
@@ -134,11 +147,8 @@ class CommandHandler:
         if cmd.get("mod_only") and not (author.is_mod or author.is_broadcaster):
             return
         key = (name, author.name.lower())
-        now = time.time()
-        last = self._cooldowns.get(key, 0)
-        if now - last < cmd.get("cooldown", 0):
+        if not self._ratelimit(key, cmd.get("cooldown", 0)):
             return
-        self._cooldowns[key] = now
         text = cmd.get("text", "")
         text = Template(text).safe_substitute(
             user=author.name,
@@ -179,12 +189,8 @@ class CommandHandler:
             text = " | ".join(f"{n}: {v}" for n, v in rows if n != "tod")
             await message.channel.send(f"📦 Лут: {text}")
             return
-        key = ("add", message.author.name.lower())
-        now = time.time()
-        last = self._cooldowns.get(key, 0)
-        if now - last < 15:
+        if not self._ratelimit(("add", message.author.name.lower()), 15):
             return
-        self._cooldowns[key] = now
         parts = args.split(maxsplit=1)
         item = parts[0].lower()
         delta = 1
@@ -271,12 +277,8 @@ class CommandHandler:
             await message.channel.send("Вопрос слишком длинный (макс. 280 символов).")
             return
         user = message.author.name
-        key = ("вопрос", user.lower())
-        now = time.time()
-        last = self._cooldowns.get(key, 0)
-        if now - last < 15:
+        if not self._ratelimit(("вопрос", user.lower()), 15):
             return
-        self._cooldowns[key] = now
         total = qadd(user, text)
         await message.channel.send(f"❓ Вопрос принят! В очереди: {total}")
 

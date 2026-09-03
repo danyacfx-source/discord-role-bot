@@ -1,5 +1,4 @@
 import logging
-import re
 import time
 from collections import defaultdict, deque
 from datetime import timedelta
@@ -8,11 +7,16 @@ import discord
 from discord.ext import commands
 
 from config import CONFIG
+from moderation_rules import (
+    check_caps,
+    check_links,
+    check_stretch,
+    extract_hosts,
+    match_banned_word,
+    normalized_allowed_links,
+)
 
 log = logging.getLogger("automod")
-
-LINK_RE = re.compile(r"https?://([\w.-]+)", re.IGNORECASE)
-BARE_DOMAIN_RE = re.compile(r"(?<![\w.])([\w-]+\.\w{2,})(?:[/\s]|$)", re.IGNORECASE)
 
 
 class DiscordAutomod(commands.Cog):
@@ -20,7 +24,11 @@ class DiscordAutomod(commands.Cog):
         self.bot = bot
         self.config = CONFIG.get("discord_automod") or {}
         self._messages: dict[int, deque[float]] = defaultdict(deque)
-        self._timeout_counts: dict[int, int] = defaultdict(int)
+        # Дефект: счётчик накопления нарушений рос безгранично и не имел
+        # временнóго окна — разрозненные нарушения за длительный период давали
+        # тот же результат, что серия за минуту. Храним метки времени нарушений.
+        self._timeout_counts: dict[int, deque[float]] = defaultdict(deque)
+        self._ban_window = float(self.config.get("ban_window_seconds", 300))
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -75,48 +83,34 @@ class DiscordAutomod(commands.Cog):
         return any(r.name in ignored for r in member.roles)
 
     def _analyze(self, member: discord.Member, content: str) -> str | None:
-        lowered = content.lower()
-        banned = self.config.get("banned_words") or []
-        for word in banned:
-            if not word:
-                continue
-            if word in lowered:
-                return f"запрещённое слово: «{word.strip()}»"
-
-        if self.config.get("block_links", True):
-            hosts = self._extract_hosts(content)
-            allowed = [h.lower() for h in (self.config.get("allowed_links") or []) if h]
-            for host in hosts:
-                ok = any(host == a or host.endswith("." + a) for a in allowed)
-                if not ok:
-                    return f"ссылка на неразрешённый домен: {host}"
-
-        caps_threshold = self.config.get("caps_threshold", 0.8)
-        caps_min_len = self.config.get("caps_min_len", 12)
-        letters = [ch for ch in content if ch.isalpha()]
-        if len(letters) >= caps_min_len:
-            upper = sum(1 for ch in letters if ch.isupper())
-            if upper / len(letters) >= caps_threshold:
-                return "капс"
-
+        # Счётчик сообщений учитывает каждое проанализированное сообщение.
+        # Раньше вызов стоял после проверок слова/ссылки/капса, из-за чего
+        # сообщения, пойманные на этих проверках, не учитывались счётчиком флуда.
         self._track_spam(member)
         if self._is_spam(member):
             return "спам"
 
-        return None
+        word = match_banned_word(content, self.config.get("banned_words") or [])
+        if word:
+            return f"запрещённое слово: «{word}»"
 
-    @staticmethod
-    def _extract_hosts(content: str) -> list[str]:
-        hosts = []
-        for m in LINK_RE.finditer(content):
-            host = m.group(1).lower().lstrip("www.")
+        if self.config.get("block_links", True):
+            allowed = normalized_allowed_links(self.config)
+            host = check_links(content, allowed, block_links=True)
             if host:
-                hosts.append(host)
-        for m in BARE_DOMAIN_RE.finditer(content):
-            host = m.group(1).lower().lstrip("www.")
-            if host and host not in hosts:
-                hosts.append(host)
-        return hosts
+                return f"ссылка на неразрешённый домен: {host}"
+
+        if check_caps(
+            content,
+            threshold=self.config.get("caps_threshold", 0.8),
+            min_len=self.config.get("caps_min_len", 12),
+        ):
+            return "капс"
+
+        if check_stretch(content):
+            return "растянутый спам"
+
+        return None
 
     def _track_spam(self, member: discord.Member):
         now = time.time()
@@ -147,10 +141,15 @@ class DiscordAutomod(commands.Cog):
 
         ban_after = self.config.get("ban_after_timeouts", 0)
         if ban_after and ban_after > 0:
-            self._timeout_counts[member.id] += 1
-            if self._timeout_counts[member.id] >= ban_after:
+            now = time.time()
+            window = self._ban_window
+            stamps = self._timeout_counts[member.id]
+            while stamps and now - stamps[0] > window:
+                stamps.popleft()
+            stamps.append(now)
+            if len(stamps) >= ban_after:
                 try:
-                    await member.ban(reason=f"Automod: {ban_after} нарушений подряд")
+                    await member.ban(reason=f"Automod: {ban_after} нарушений за {int(window)}с")
                     log.warning("Automod: бан %s (%s)", member, reason)
                     cog = self.bot.get_cog("GuildLogs")
                     if cog is not None:
@@ -158,13 +157,13 @@ class DiscordAutomod(commands.Cog):
                             await cog.post_mod_log(
                                 member=member,
                                 action="Автомод: бан",
-                                reason=f"{ban_after} нарушения подряд ({reason})",
+                                reason=f"{ban_after} нарушения за окно {int(window)}с ({reason})",
                             )
                         except Exception:
                             log.exception("Ошибка отправки лога модерации")
                 except discord.Forbidden:
                     pass
-                self._timeout_counts[member.id] = 0
+                stamps.clear()
 
 
 async def setup(bot: commands.Bot):

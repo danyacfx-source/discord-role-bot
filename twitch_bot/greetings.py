@@ -57,3 +57,8 @@ class Greetings:
         stale = [k for k, ts in self.seen.items() if ts < cutoff]
         for k in stale:
             del self.seen[k]
+        # Дефект D07: _last_welcome рос безгранично по пользователям.
+        if len(self._last_welcome) > 10000:
+            wcut = time.time() - max(self.config.get("welcome_cooldown", 60), 600)
+            for k in [k for k, ts in self._last_welcome.items() if ts < wcut]:
+                self._last_welcome.pop(k, None)

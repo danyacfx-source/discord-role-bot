@@ -22,8 +22,10 @@ import threading
 import webbrowser
 
 REDIRECT_URI = "http://localhost:8090/callback"
+# Принцип наименьших привилегий (дефект D15): полный scope youtube даёт
+# управление всем каналом, тогда как боту нужна только работа с лайв-чатом.
+# youtube.force-ssl достаточно для liveChat/messages (чтение/удаление/бан/ответ).
 SCOPES = [
-    "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.force-ssl",
 ]
 

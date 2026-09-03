@@ -305,6 +305,11 @@ class TarkovRoulette:
         last = self._cooldowns.get(key, 0)
         if now - last < seconds:
             return False
+        # Дефект D07: кулдауны росли безгранично по (name, user).
+        if len(self._cooldowns) > 10000:
+            cutoff = now - max(seconds, 600)
+            for k in [k for k, t in self._cooldowns.items() if now - t > cutoff]:
+                self._cooldowns.pop(k, None)
         self._cooldowns[key] = now
         return True
 

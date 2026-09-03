@@ -5,7 +5,8 @@ import discord
 from discord.ext import commands
 
 from config import CONFIG
-from db import add_message, season_add_message
+from db import add_message, season_add_message, level_index_for
+from utils import role_for_level
 
 log = logging.getLogger("voice_xp")
 
@@ -38,6 +39,32 @@ class VoiceXP(commands.Cog):
                 log.exception("VoiceXP: ошибка начисления очков")
             await asyncio.sleep(interval)
 
+    async def _ensure_level_role(self, member: discord.Member, points: int):
+        """Выдать роль текущего уровня по голосовой активности.
+
+        Раньше модуль обращался к несуществующему методу leveling.update_roles и
+        падал при каждой попытке. Теперь роль уровня начисляется напрямую по
+        количеству очков (уровни задаются в config.json).
+        """
+        try:
+            level_idx = level_index_for(points)
+            if level_idx < 0:
+                return
+            target = role_for_level(member.guild, level_idx)
+            if target is None:
+                return
+            if target in member.roles:
+                return
+            for idx in range(level_idx):
+                lower = role_for_level(member.guild, idx)
+                if lower is not None and lower in member.roles and lower != target:
+                    await member.remove_roles(lower, reason="VoiceXP: повышение уровня")
+            await member.add_roles(target, reason="VoiceXP: начисление за голос")
+        except discord.Forbidden:
+            log.warning("VoiceXP: нет прав на выдачу роли %s", getattr(member, "name", member.id))
+        except Exception:
+            log.exception("VoiceXP: ошибка обновления роли уровня %s", getattr(member, "name", member.id))
+
     async def _award(self):
         skip_muted = self.config.get("skip_muted", False)
         for guild in self.bot.guilds:
@@ -47,18 +74,11 @@ class VoiceXP(commands.Cog):
                         continue
                     if skip_muted:
                         voice = member.voice
-                        if member.mute or member.deafen or (
-                            voice is not None and (voice.self_mute or voice.self_deaf)
-                        ):
+                        if voice is not None and (voice.self_mute or voice.self_deaf):
                             continue
                     points, _xp = add_message(guild.id, member.id)
                     season_add_message(guild.id, member.id)
-                    leveling = self.bot.get_cog("Leveling")
-                    if leveling is not None:
-                        try:
-                            await leveling.update_roles(member, points, None)
-                        except Exception:
-                            log.exception("VoiceXP: не удалось обновить роль %s", member)
+                    await self._ensure_level_role(member, points)
 
 
 async def setup(bot: commands.Bot):
