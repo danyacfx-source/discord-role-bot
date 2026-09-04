@@ -9,7 +9,7 @@ DEFAULT_LINKS = {
     "site": "https://danyacfx-source.github.io/dendich/",
     "youtube": "https://www.youtube.com/@Dendosich",
     "donate": "https://donatty.com/dendich",
-    "kick": "https://kick.com/dendich",
+    "kick": "https://kick.com/dendosich",
 }
 
 ICONS = {
